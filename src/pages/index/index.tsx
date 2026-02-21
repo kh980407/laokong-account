@@ -1,4 +1,4 @@
-import { View, Text } from '@tarojs/components'
+import { View, Text, Input, Picker } from '@tarojs/components'
 import Taro, { usePullDownRefresh } from '@tarojs/taro'
 import { useState, useEffect } from 'react'
 import { Network } from '@/network'
@@ -19,13 +19,33 @@ const IndexPage = () => {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(false)
 
+  // 搜索相关状态
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
   // 加载账单列表
-  const loadAccounts = async () => {
+  const loadAccounts = async (searchParams?: { keyword?: string; startDate?: string; endDate?: string }) => {
     setLoading(true)
     try {
+      // 构建查询参数
+      const params: any = {}
+      if (searchParams?.keyword) {
+        params.keyword = searchParams.keyword
+      }
+      if (searchParams?.startDate) {
+        params.startDate = searchParams.startDate
+      }
+      if (searchParams?.endDate) {
+        params.endDate = searchParams.endDate
+      }
+
       const res = await Network.request({
         url: '/api/accounts',
-        method: 'GET'
+        method: 'GET',
+        data: params
       })
       console.log('账单列表响应:', res.data)
 
@@ -41,6 +61,23 @@ const IndexPage = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  // 执行搜索
+  const handleSearch = () => {
+    loadAccounts({
+      keyword: searchKeyword.trim(),
+      startDate,
+      endDate
+    })
+  }
+
+  // 清空搜索
+  const handleClearSearch = () => {
+    setSearchKeyword('')
+    setStartDate('')
+    setEndDate('')
+    loadAccounts()
   }
 
   // 跳转到新增账单页面
@@ -103,6 +140,95 @@ const IndexPage = () => {
         </View>
       </View>
 
+      {/* 搜索栏 */}
+      <View className="px-4 pt-4 pb-2">
+        <View className="bg-white rounded-xl p-4 border-2 border-gray-200">
+          {/* 搜索关键词 */}
+          <View className="mb-3">
+            <Text className="block text-sm text-gray-600 mb-2 font-semibold">
+              搜索姓名、电话、商品
+            </Text>
+            <View className="bg-gray-100 rounded-lg p-3 border-2 border-gray-300">
+              <Input
+                className="w-full bg-transparent text-base text-gray-900"
+                placeholder="请输入搜索关键词"
+                placeholderClass="text-base text-gray-500"
+                value={searchKeyword}
+                onInput={(e) => setSearchKeyword(e.detail.value)}
+              />
+            </View>
+          </View>
+
+          {/* 日期范围 */}
+          <View className="mb-3">
+            <Text className="block text-sm text-gray-600 mb-2 font-semibold">
+              时间范围（可选）
+            </Text>
+            <View className="flex gap-2">
+              <View
+                onClick={() => setShowStartDatePicker(true)}
+                className="flex-1 bg-gray-100 rounded-lg p-3 border-2 border-gray-300"
+              >
+                <Text className={`block text-base ${startDate ? 'text-gray-900' : 'text-gray-500'}`}>
+                  {startDate || '开始日期'}
+                </Text>
+              </View>
+              <View
+                onClick={() => setShowEndDatePicker(true)}
+                className="flex-1 bg-gray-100 rounded-lg p-3 border-2 border-gray-300"
+              >
+                <Text className={`block text-base ${endDate ? 'text-gray-900' : 'text-gray-500'}`}>
+                  {endDate || '结束日期'}
+                </Text>
+              </View>
+            </View>
+
+            {/* 隐藏的日期选择器 */}
+            <Picker
+              mode="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.detail.value)
+                setShowStartDatePicker(false)
+              }}
+            >
+              <View style={{ display: showStartDatePicker ? 'flex' : 'none' }}></View>
+            </Picker>
+
+            <Picker
+              mode="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.detail.value)
+                setShowEndDatePicker(false)
+              }}
+            >
+              <View style={{ display: showEndDatePicker ? 'flex' : 'none' }}></View>
+            </Picker>
+          </View>
+
+          {/* 操作按钮 */}
+          <View className="flex gap-3">
+            <View
+              onClick={handleClearSearch}
+              className="flex-1 bg-gray-200 rounded-lg py-3"
+            >
+              <Text className="block text-center text-base font-semibold text-gray-700">
+                清空
+              </Text>
+            </View>
+            <View
+              onClick={handleSearch}
+              className="flex-1 bg-blue-500 rounded-lg py-3"
+            >
+              <Text className="block text-center text-base font-semibold text-white">
+                搜索
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
       {/* 账单列表 */}
       <View className="px-4 py-6">
         {loading ? (
@@ -111,21 +237,34 @@ const IndexPage = () => {
           </View>
         ) : accounts.length === 0 ? (
           <View className="flex flex-col items-center justify-center py-20">
-            <Text className="text-6xl mb-4">📋</Text>
+            <Text className="text-6xl mb-4">{searchKeyword || startDate || endDate ? '🔍' : '📋'}</Text>
             <Text className="block text-lg text-gray-700 font-semibold mb-2">
-              暂无账单记录
+              {searchKeyword || startDate || endDate ? '未找到匹配的账单' : '暂无账单记录'}
             </Text>
             <Text className="block text-base text-gray-600 text-center mb-6">
-              点击右上角&quot;+&quot;开始记录
+              {searchKeyword || startDate || endDate
+                ? '请尝试调整搜索条件'
+                : '点击右上角&quot;+&quot;开始记录'}
             </Text>
-            <View
-              onClick={goToAddPage}
-              className="bg-orange-500 rounded-xl px-8 py-4"
-            >
-              <Text className="block text-white text-lg font-semibold">
-                新增账单
-              </Text>
-            </View>
+            {(searchKeyword || startDate || endDate) ? (
+              <View
+                onClick={handleClearSearch}
+                className="bg-gray-200 rounded-xl px-8 py-4"
+              >
+                <Text className="block text-gray-700 text-lg font-semibold">
+                  清空搜索
+                </Text>
+              </View>
+            ) : (
+              <View
+                onClick={goToAddPage}
+                className="bg-orange-500 rounded-xl px-8 py-4"
+              >
+                <Text className="block text-white text-lg font-semibold">
+                  新增账单
+                </Text>
+              </View>
+            )}
           </View>
         ) : (
           <View className="flex flex-col gap-3">

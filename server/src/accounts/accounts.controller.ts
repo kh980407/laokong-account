@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode, HttpStatus } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common'
 import { AccountsService } from './accounts.service'
 
 @Controller('accounts')
@@ -8,9 +8,14 @@ export class AccountsController {
   // 获取所有账单
   @Get()
   @HttpCode(HttpStatus.OK)
-  async findAll() {
-    console.log('GET /api/accounts - 获取所有账单')
-    const data = await this.accountsService.findAll()
+  async findAll(@Query() query: any) {
+    console.log('GET /api/accounts - 获取所有账单', query)
+    const searchParams = {
+      keyword: query.keyword,
+      startDate: query.startDate,
+      endDate: query.endDate
+    }
+    const data = await this.accountsService.findAll(searchParams)
     console.log('返回账单列表:', data.length, '条记录')
     return { code: 200, msg: 'success', data }
   }

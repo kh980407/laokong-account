@@ -6,16 +6,38 @@ export class AccountsService {
   private supabase = getSupabaseClient()
 
   // 获取所有账单
-  async findAll() {
-    const { data, error } = await this.supabase
+  async findAll(searchParams?: { keyword?: string; startDate?: string; endDate?: string }) {
+    console.log('搜索参数:', searchParams)
+
+    let query = this.supabase
       .from('accounts')
       .select('*')
-      .order('created_at', { ascending: false })
+
+    // 关键词搜索（姓名、电话、商品描述）
+    if (searchParams?.keyword) {
+      const keyword = searchParams.keyword.trim()
+      query = query.or(`customer_name.ilike.%${keyword}%,phone.ilike.%${keyword}%,item_description.ilike.%${keyword}%`)
+    }
+
+    // 日期范围筛选
+    if (searchParams?.startDate) {
+      query = query.gte('account_date', searchParams.startDate)
+    }
+    if (searchParams?.endDate) {
+      query = query.lte('account_date', searchParams.endDate)
+    }
+
+    // 排序
+    query = query.order('created_at', { ascending: false })
+
+    const { data, error } = await query
 
     if (error) {
+      console.error('查询账单失败:', error)
       throw new Error(`Failed to fetch accounts: ${error.message}`)
     }
 
+    console.log('查询结果数量:', data?.length)
     return data || []
   }
 
