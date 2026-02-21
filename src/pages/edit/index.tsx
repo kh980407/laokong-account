@@ -224,18 +224,21 @@ const EditAccountPage = () => {
             </View>
 
             {/* 账单日期 */}
-            <View>
-              <Text className="block text-base text-gray-700 mb-2 font-semibold">
-                账单日期
+            <View className="bg-orange-50 rounded-xl p-4 border-2 border-orange-300">
+              <Text className="block text-base text-orange-800 mb-2 font-bold">
+                📅 账单日期（交易发生时间）
               </Text>
               <View
                 onClick={() => setShowDatePicker(true)}
-                className="bg-gray-100 rounded-xl p-4 border-2 border-gray-300"
+                className="bg-white rounded-lg p-4 border-2 border-orange-400"
               >
-                <Text className="block text-base text-gray-900">
-                  {formData.accountDate || '请选择日期'}
+                <Text className={`block text-base font-semibold ${formData.accountDate ? 'text-orange-900' : 'text-gray-500'}`}>
+                  {formData.accountDate || '点击选择账单日期'}
                 </Text>
               </View>
+              <Text className="block text-sm text-orange-700 mt-2">
+                提示：请选择交易实际发生的日期，可编辑修改
+              </Text>
               <Picker
                 mode="date"
                 value={formData.accountDate}

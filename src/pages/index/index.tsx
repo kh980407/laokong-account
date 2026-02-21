@@ -93,9 +93,23 @@ const IndexPage = () => {
   const handleExport = async () => {
     try {
       Taro.showLoading({ title: '导出中...' })
+
+      // 构建导出参数（包含当前搜索条件）
+      const params: any = {}
+      if (searchKeyword.trim()) {
+        params.keyword = searchKeyword.trim()
+      }
+      if (startDate) {
+        params.startDate = startDate
+      }
+      if (endDate) {
+        params.endDate = endDate
+      }
+
       const res = await Network.request({
         url: '/api/accounts/export',
         method: 'GET',
+        data: params,
         responseType: 'arraybuffer'
       })
       Taro.hideLoading()
@@ -112,6 +126,15 @@ const IndexPage = () => {
         filePath,
         fileType: 'xlsx'
       })
+
+      // 显示导出提示
+      setTimeout(() => {
+        Taro.showModal({
+          title: '导出成功',
+          content: `已成功导出 ${accounts.length} 条账单记录到 Excel 文件。\n\n文件已保存在您的设备中，您可以用 Excel 打开查看或进行数据备份。`,
+          showCancel: false
+        })
+      }, 500)
     } catch (error) {
       console.error('导出失败:', error)
       Taro.hideLoading()
@@ -181,15 +204,7 @@ const IndexPage = () => {
 
       {/* 统计信息卡片 */}
       <View className="bg-gradient-to-br from-orange-400 to-orange-600 p-6 pb-8 shadow-lg">
-        <View className="flex justify-between items-center mb-4">
-          <Text className="block text-2xl font-bold text-white">电子账本</Text>
-          <View
-            onClick={handleExport}
-            className="bg-white bg-opacity-20 rounded-lg px-4 py-2 border border-white border-opacity-30"
-          >
-            <Text className="block text-base font-semibold text-white">导出 Excel</Text>
-          </View>
-        </View>
+        <Text className="block text-2xl font-bold text-white mb-4">电子账本</Text>
         <View className="flex justify-between gap-4">
           <View className="flex-1 bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
             <Text className="block text-base text-white mb-1">总金额</Text>
@@ -203,6 +218,36 @@ const IndexPage = () => {
               {unpaidCount} 笔
             </Text>
           </View>
+        </View>
+      </View>
+
+      {/* 导出 Excel 卡片 */}
+      <View className="px-4 pt-4 pb-2">
+        <View
+          onClick={handleExport}
+          className="bg-gradient-to-r from-green-400 to-green-600 rounded-2xl p-5 shadow-md border border-green-300"
+        >
+          <View className="flex items-center gap-4">
+            <View className="w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+              <Text className="block text-2xl">📊</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="block text-lg font-bold text-white mb-1">
+                导出 Excel 表格
+              </Text>
+              <Text className="block text-sm text-white text-opacity-90">
+                将账单记录导出为 Excel 文件，方便存档和备份
+              </Text>
+            </View>
+            <Text className="block text-2xl text-white">→</Text>
+          </View>
+          {searchKeyword || startDate || endDate ? (
+            <View className="mt-3 bg-white bg-opacity-20 rounded-lg px-3 py-2">
+              <Text className="block text-sm text-white">
+                💡 当前搜索条件也将被导出
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 

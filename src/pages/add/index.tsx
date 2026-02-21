@@ -166,30 +166,31 @@ const AddAccountPage = () => {
       console.log('图片识别响应:', aiRes)
 
       if (aiRes.data?.data && Array.isArray(aiRes.data.data) && aiRes.data.data.length > 0) {
-        const extractedData = aiRes.data.data[0]
+        const extractedDataList = aiRes.data.data
 
-        // 填充表单
-        setFormData(prev => ({
-          ...prev,
-          customerName: extractedData.customer_name || prev.customerName,
-          phone: extractedData.phone || prev.phone,
-          amount: extractedData.amount ? String(extractedData.amount) : prev.amount,
-          itemDescription: extractedData.item_description || prev.itemDescription,
-          isPaid: extractedData.is_paid !== undefined ? extractedData.is_paid : prev.isPaid,
-          accountDate: extractedData.account_date || prev.accountDate
-        }))
+        Taro.hideLoading()
 
-        Taro.showToast({
-          title: '识别成功',
-          icon: 'success'
-        })
-
-        // 如果识别出多条记录，提示用户
-        if (aiRes.data.data.length > 1) {
-          Taro.showModal({
+        // 如果识别出多条记录，提示用户是否批量创建
+        if (extractedDataList.length > 1) {
+          const result = await Taro.showModal({
             title: '识别到多条记录',
-            content: `识别到 ${aiRes.data.data.length} 条记录，当前显示第1条。请确认后保存，然后继续录入下一条。`,
-            showCancel: false
+            content: `识别到 ${extractedDataList.length} 条账单记录，是否全部创建？\n\n您可以后续点击每条记录进行修改。`,
+            confirmText: '全部创建',
+            confirmColor: '#10b981'
+          })
+
+          if (result.confirm) {
+            await batchCreateAccounts(extractedDataList)
+          } else {
+            // 用户选择不批量创建，只填充第一条
+            fillFormData(extractedDataList[0])
+          }
+        } else {
+          // 只有一条记录，直接填充
+          fillFormData(extractedDataList[0])
+          Taro.showToast({
+            title: '识别成功',
+            icon: 'success'
           })
         }
       } else {
@@ -197,12 +198,93 @@ const AddAccountPage = () => {
       }
     } catch (error) {
       console.error('图片识别失败:', error)
+      Taro.hideLoading()
       Taro.showToast({
         title: '识别失败，请手动输入',
         icon: 'none'
       })
-    } finally {
+    }
+  }
+
+  // 填充表单数据
+  const fillFormData = (data: any) => {
+    setFormData(prev => ({
+      ...prev,
+      customerName: data.customer_name || prev.customerName,
+      phone: data.phone || prev.phone,
+      amount: data.amount ? String(data.amount) : prev.amount,
+      itemDescription: data.item_description || prev.itemDescription,
+      isPaid: data.is_paid !== undefined ? data.is_paid : prev.isPaid,
+      accountDate: data.account_date || prev.accountDate
+    }))
+  }
+
+  // 批量创建账单
+  const batchCreateAccounts = async (accounts: any[]) => {
+    try {
+      Taro.showLoading({ title: '创建中...' })
+
+      let successCount = 0
+      let failCount = 0
+
+      for (let i = 0; i < accounts.length; i++) {
+        const account = accounts[i]
+
+        // 使用图片URL作为凭证
+        const submitData = {
+          customer_name: account.customer_name || '',
+          phone: account.phone || '',
+          amount: parseFloat(account.amount) || 0,
+          item_description: account.item_description || '',
+          account_date: account.account_date || formData.accountDate,
+          is_paid: account.is_paid !== undefined ? account.is_paid : false,
+          image_url: imageUrl || null
+        }
+
+        try {
+          await Network.request({
+            url: '/api/accounts',
+            method: 'POST',
+            data: submitData
+          })
+          successCount++
+        } catch (error) {
+          console.error(`创建第 ${i + 1} 条记录失败:`, error)
+          failCount++
+        }
+      }
+
       Taro.hideLoading()
+
+      if (failCount === 0) {
+        Taro.showToast({
+          title: `成功创建 ${successCount} 条记录`,
+          icon: 'success'
+        })
+
+        // 返回首页
+        setTimeout(() => {
+          Taro.navigateBack()
+        }, 1500)
+      } else {
+        Taro.showModal({
+          title: '部分创建失败',
+          content: `成功 ${successCount} 条，失败 ${failCount} 条。\n已创建的记录可在首页查看，失败的记录请手动创建。`,
+          showCancel: false,
+          success: (res) => {
+            if (res.confirm) {
+              Taro.navigateBack()
+            }
+          }
+        })
+      }
+    } catch (error) {
+      console.error('批量创建失败:', error)
+      Taro.hideLoading()
+      Taro.showToast({
+        title: '创建失败，请重试',
+        icon: 'none'
+      })
     }
   }
 
@@ -463,18 +545,21 @@ const AddAccountPage = () => {
             </View>
 
             {/* 账单日期 */}
-            <View>
-              <Text className="block text-base text-gray-700 mb-2 font-semibold">
-                账单日期
+            <View className="bg-orange-50 rounded-xl p-4 border-2 border-orange-300">
+              <Text className="block text-base text-orange-800 mb-2 font-bold">
+                📅 账单日期（交易发生时间）
               </Text>
               <View
                 onClick={() => setShowDatePicker(true)}
-                className="bg-gray-100 rounded-xl p-4 border-2 border-gray-300"
+                className="bg-white rounded-lg p-4 border-2 border-orange-400"
               >
-                <Text className="block text-base text-gray-900">
-                  {formData.accountDate || '请选择日期'}
+                <Text className={`block text-base font-semibold ${formData.accountDate ? 'text-orange-900' : 'text-gray-500'}`}>
+                  {formData.accountDate || '点击选择账单日期'}
                 </Text>
               </View>
+              <Text className="block text-sm text-orange-700 mt-2">
+                提示：请选择交易实际发生的日期，而非录入日期
+              </Text>
               <Picker
                 mode="date"
                 value={formData.accountDate}
