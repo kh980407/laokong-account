@@ -114,32 +114,51 @@ const IndexPage = () => {
       })
       Taro.hideLoading()
 
+      // 生成文件名
+      const timestamp = new Date().getTime()
+      const fileName = `老孔记账本_${timestamp}.xlsx`
+      const filePath = `${Taro.env.USER_DATA_PATH}/${fileName}`
+
       // 保存文件
       const fs = Taro.getFileSystemManager()
-      const filePath = `${Taro.env.USER_DATA_PATH}/账单导出_${new Date().getTime()}.xlsx`
       fs.writeFile({
         filePath,
         data: res.data,
         encoding: 'binary'
       })
-      Taro.openDocument({
-        filePath,
-        fileType: 'xlsx'
-      })
 
-      // 显示导出提示
-      setTimeout(() => {
+      // 尝试打开文件
+      try {
+        await Taro.openDocument({
+          filePath,
+          fileType: 'xlsx',
+          showMenu: true
+        })
+
+        // 显示文件位置提示
+        setTimeout(() => {
+          Taro.showModal({
+            title: '📄 导出成功',
+            content: `已成功导出 ${accounts.length} 条账单记录！\n\n📁 文件名：${fileName}\n💾 文件已自动打开，您可以保存或分享。\n\n如需再次查看，请在文件管理器中搜索文件名。`,
+            confirmText: '知道了',
+            showCancel: false
+          })
+        }, 800)
+      } catch (openError) {
+        console.error('打开文件失败:', openError)
+        // 如果打开失败，仍然显示保存成功
         Taro.showModal({
-          title: '导出成功',
-          content: `已成功导出 ${accounts.length} 条账单记录到 Excel 文件。\n\n文件已保存在您的设备中，您可以用 Excel 打开查看或进行数据备份。`,
+          title: '📄 导出成功',
+          content: `已成功导出 ${accounts.length} 条账单记录！\n\n📁 文件名：${fileName}\n💾 文件已保存到：${filePath}\n\n您可以在文件管理器中找到此文件，或下次重新导出。`,
+          confirmText: '知道了',
           showCancel: false
         })
-      }, 500)
+      }
     } catch (error) {
       console.error('导出失败:', error)
       Taro.hideLoading()
       Taro.showToast({
-        title: '导出失败',
+        title: '导出失败，请重试',
         icon: 'none'
       })
     }
@@ -203,18 +222,33 @@ const IndexPage = () => {
       </View>
 
       {/* 统计信息卡片 */}
-      <View className="bg-gradient-to-br from-orange-400 to-orange-600 p-6 pb-8 shadow-lg">
-        <Text className="block text-2xl font-bold text-white mb-4">电子账本</Text>
+      <View className="bg-gradient-to-br from-orange-400 via-orange-500 to-amber-500 p-6 pb-8 shadow-xl border-b-4 border-orange-600">
+        <View className="flex items-center gap-4 mb-5">
+          <View className="w-16 h-16 bg-white bg-opacity-25 rounded-2xl flex items-center justify-center shadow-md backdrop-blur-sm">
+            <Text className="text-4xl">📔</Text>
+          </View>
+          <View>
+            <Text className="block text-3xl font-bold text-white">老孔记账本</Text>
+            <Text className="block text-base text-orange-100 mt-1">记录美好生活，算好每笔账</Text>
+          </View>
+        </View>
+
         <View className="flex justify-between gap-4">
-          <View className="flex-1 bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
-            <Text className="block text-base text-white mb-1">总金额</Text>
-            <Text className="block text-2xl font-bold text-white">
-              ¥ {totalAmount.toFixed(2)}
+          <View className="flex-1 bg-white bg-opacity-25 rounded-2xl p-5 backdrop-blur-sm shadow-md">
+            <View className="flex items-center gap-2 mb-2">
+              <Text className="text-2xl">💰</Text>
+              <Text className="block text-base text-white font-semibold">总金额</Text>
+            </View>
+            <Text className="block text-3xl font-bold text-white">
+              ¥{totalAmount.toFixed(2)}
             </Text>
           </View>
-          <View className="flex-1 bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
-            <Text className="block text-base text-white mb-1">待收款</Text>
-            <Text className="block text-2xl font-bold text-white">
+          <View className="flex-1 bg-white bg-opacity-25 rounded-2xl p-5 backdrop-blur-sm shadow-md">
+            <View className="flex items-center gap-2 mb-2">
+              <Text className="text-2xl">📋</Text>
+              <Text className="block text-base text-white font-semibold">待收款</Text>
+            </View>
+            <Text className="block text-3xl font-bold text-white">
               {unpaidCount} 笔
             </Text>
           </View>

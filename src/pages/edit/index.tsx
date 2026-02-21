@@ -15,7 +15,6 @@ const EditAccountPage = () => {
     isPaid: false
   })
   const [imageUrl, setImageUrl] = useState('')
-  const [showDatePicker, setShowDatePicker] = useState(false)
 
   // 页面加载时获取账单详情
   useEffect(() => {
@@ -228,27 +227,22 @@ const EditAccountPage = () => {
               <Text className="block text-base text-orange-800 mb-2 font-bold">
                 📅 账单日期（交易发生时间）
               </Text>
-              <View
-                onClick={() => setShowDatePicker(true)}
-                className="bg-white rounded-lg p-4 border-2 border-orange-400"
-              >
-                <Text className={`block text-base font-semibold ${formData.accountDate ? 'text-orange-900' : 'text-gray-500'}`}>
-                  {formData.accountDate || '点击选择账单日期'}
-                </Text>
-              </View>
-              <Text className="block text-sm text-orange-700 mt-2">
-                提示：请选择交易实际发生的日期，可编辑修改
-              </Text>
               <Picker
                 mode="date"
                 value={formData.accountDate}
                 onChange={(e) => {
                   setFormData(prev => ({ ...prev, accountDate: e.detail.value }))
-                  setShowDatePicker(false)
                 }}
               >
-                <View style={{ display: showDatePicker ? 'flex' : 'none' }}></View>
+                <View className="bg-white rounded-lg p-4 border-2 border-orange-400 active:bg-orange-50 transition-colors">
+                  <Text className={`block text-base font-semibold ${formData.accountDate ? 'text-orange-900' : 'text-gray-500'}`}>
+                    {formData.accountDate || '点击选择账单日期'}
+                  </Text>
+                </View>
               </Picker>
+              <Text className="block text-sm text-orange-700 mt-2">
+                提示：请选择交易实际发生的日期，可编辑修改
+              </Text>
             </View>
 
             {/* 付款状态 */}
