@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, HttpCode, HttpStatus, Res, StreamableFile } from '@nestjs/common'
+import { Response } from 'express'
 import { AccountsService } from './accounts.service'
 
 @Controller('accounts')
@@ -18,6 +19,25 @@ export class AccountsController {
     const data = await this.accountsService.findAll(searchParams)
     console.log('返回账单列表:', data.length, '条记录')
     return { code: 200, msg: 'success', data }
+  }
+
+  // 导出 Excel
+  @Get('export')
+  @HttpCode(HttpStatus.OK)
+  async exportExcel(@Query() query: any, @Res() res: Response) {
+    console.log('GET /api/accounts/export - 导出 Excel', query)
+    const searchParams = {
+      keyword: query.keyword,
+      startDate: query.startDate,
+      endDate: query.endDate
+    }
+
+    const { buffer, filename } = await this.accountsService.exportExcel(searchParams)
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`
+    })
+    res.send(buffer)
   }
 
   // 获取单个账单

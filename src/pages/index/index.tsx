@@ -1,6 +1,6 @@
-import { View, Text, Input, Picker } from '@tarojs/components'
+import { View, Text, Input, Picker, ScrollView } from '@tarojs/components'
 import Taro, { usePullDownRefresh } from '@tarojs/taro'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Network } from '@/network'
 import './index.css'
 
@@ -21,8 +21,6 @@ const IndexPage = () => {
 
   // 搜索相关状态
   const [searchKeyword, setSearchKeyword] = useState('')
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
@@ -80,6 +78,39 @@ const IndexPage = () => {
     loadAccounts()
   }
 
+  // 导出 Excel
+  const handleExport = async () => {
+    try {
+      Taro.showLoading({ title: '导出中...' })
+      const res = await Network.request({
+        url: '/api/accounts/export',
+        method: 'GET',
+        responseType: 'arraybuffer'
+      })
+      Taro.hideLoading()
+
+      // 保存文件
+      const fs = Taro.getFileSystemManager()
+      const filePath = `${Taro.env.USER_DATA_PATH}/账单导出_${new Date().getTime()}.xlsx`
+      fs.writeFile({
+        filePath,
+        data: res.data,
+        encoding: 'binary'
+      })
+      Taro.openDocument({
+        filePath,
+        fileType: 'xlsx'
+      })
+    } catch (error) {
+      console.error('导出失败:', error)
+      Taro.hideLoading()
+      Taro.showToast({
+        title: '导出失败',
+        icon: 'none'
+      })
+    }
+  }
+
   // 跳转到新增账单页面
   const goToAddPage = () => {
     Taro.navigateTo({
@@ -109,6 +140,22 @@ const IndexPage = () => {
   const totalAmount = accounts.reduce((sum, acc) => sum + acc.amount, 0)
   const unpaidCount = accounts.filter(acc => !acc.is_paid).length
 
+  // 按日期分组
+  const groupedAccounts = useMemo(() => {
+    const groups: Record<string, Account[]> = {}
+    accounts.forEach(account => {
+      const date = account.account_date
+      if (!groups[date]) {
+        groups[date] = []
+      }
+      groups[date].push(account)
+    })
+    // 按日期降序排序
+    return Object.entries(groups)
+      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+      .map(([date, items]) => ({ date, items }))
+  }, [accounts])
+
   return (
     <View className="min-h-screen bg-gray-50">
       {/* 导航栏右侧添加按钮 */}
@@ -122,16 +169,24 @@ const IndexPage = () => {
       </View>
 
       {/* 统计信息卡片 */}
-      <View className="bg-orange-500 p-6 pb-8">
-        <Text className="block text-2xl font-bold text-white mb-4">电子账本</Text>
+      <View className="bg-gradient-to-br from-orange-400 to-orange-600 p-6 pb-8 shadow-lg">
+        <View className="flex justify-between items-center mb-4">
+          <Text className="block text-2xl font-bold text-white">电子账本</Text>
+          <View
+            onClick={handleExport}
+            className="bg-white bg-opacity-20 rounded-lg px-4 py-2 border border-white border-opacity-30"
+          >
+            <Text className="block text-base font-semibold text-white">导出 Excel</Text>
+          </View>
+        </View>
         <View className="flex justify-between gap-4">
-          <View className="flex-1 bg-white bg-opacity-20 rounded-xl p-4">
+          <View className="flex-1 bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
             <Text className="block text-base text-white mb-1">总金额</Text>
             <Text className="block text-2xl font-bold text-white">
               ¥ {totalAmount.toFixed(2)}
             </Text>
           </View>
-          <View className="flex-1 bg-white bg-opacity-20 rounded-xl p-4">
+          <View className="flex-1 bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
             <Text className="block text-base text-white mb-1">待收款</Text>
             <Text className="block text-2xl font-bold text-white">
               {unpaidCount} 笔
@@ -142,17 +197,17 @@ const IndexPage = () => {
 
       {/* 搜索栏 */}
       <View className="px-4 pt-4 pb-2">
-        <View className="bg-white rounded-xl p-4 border-2 border-gray-200">
+        <View className="bg-white rounded-2xl p-4 shadow-md border border-gray-100">
           {/* 搜索关键词 */}
-          <View className="mb-3">
+          <View className="mb-4">
             <Text className="block text-sm text-gray-600 mb-2 font-semibold">
-              搜索姓名、电话、商品
+              🔍 搜索姓名、电话、商品
             </Text>
-            <View className="bg-gray-100 rounded-lg p-3 border-2 border-gray-300">
+            <View className="bg-gray-50 rounded-xl p-4 border-2 border-orange-200 focus-within:border-orange-400 transition-colors">
               <Input
                 className="w-full bg-transparent text-base text-gray-900"
                 placeholder="请输入搜索关键词"
-                placeholderClass="text-base text-gray-500"
+                placeholderClass="text-base text-gray-400"
                 value={searchKeyword}
                 onInput={(e) => setSearchKeyword(e.detail.value)}
               />
@@ -160,58 +215,44 @@ const IndexPage = () => {
           </View>
 
           {/* 日期范围 */}
-          <View className="mb-3">
+          <View className="mb-4">
             <Text className="block text-sm text-gray-600 mb-2 font-semibold">
-              时间范围（可选）
+              📅 选择时间范围（可选）
             </Text>
-            <View className="flex gap-2">
-              <View
-                onClick={() => setShowStartDatePicker(true)}
-                className="flex-1 bg-gray-100 rounded-lg p-3 border-2 border-gray-300"
+            <View className="flex gap-3">
+              <Picker
+                mode="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.detail.value)}
               >
-                <Text className={`block text-base ${startDate ? 'text-gray-900' : 'text-gray-500'}`}>
-                  {startDate || '开始日期'}
-                </Text>
-              </View>
-              <View
-                onClick={() => setShowEndDatePicker(true)}
-                className="flex-1 bg-gray-100 rounded-lg p-3 border-2 border-gray-300"
+                <View className="flex-1 bg-gray-50 rounded-xl p-4 border-2 border-orange-200 focus-within:border-orange-400 transition-colors flex items-center">
+                  <Text className={`block text-base ${startDate ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {startDate || '开始日期'}
+                  </Text>
+                </View>
+              </Picker>
+
+              <Text className="block text-2xl text-gray-400 self-center">-</Text>
+
+              <Picker
+                mode="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.detail.value)}
               >
-                <Text className={`block text-base ${endDate ? 'text-gray-900' : 'text-gray-500'}`}>
-                  {endDate || '结束日期'}
-                </Text>
-              </View>
+                <View className="flex-1 bg-gray-50 rounded-xl p-4 border-2 border-orange-200 focus-within:border-orange-400 transition-colors flex items-center">
+                  <Text className={`block text-base ${endDate ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {endDate || '结束日期'}
+                  </Text>
+                </View>
+              </Picker>
             </View>
-
-            {/* 隐藏的日期选择器 */}
-            <Picker
-              mode="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.detail.value)
-                setShowStartDatePicker(false)
-              }}
-            >
-              <View style={{ display: showStartDatePicker ? 'flex' : 'none' }}></View>
-            </Picker>
-
-            <Picker
-              mode="date"
-              value={endDate}
-              onChange={(e) => {
-                setEndDate(e.detail.value)
-                setShowEndDatePicker(false)
-              }}
-            >
-              <View style={{ display: showEndDatePicker ? 'flex' : 'none' }}></View>
-            </Picker>
           </View>
 
           {/* 操作按钮 */}
           <View className="flex gap-3">
             <View
               onClick={handleClearSearch}
-              className="flex-1 bg-gray-200 rounded-lg py-3"
+              className="flex-1 bg-gray-100 rounded-xl py-4 border-2 border-gray-200 active:bg-gray-200 transition-colors"
             >
               <Text className="block text-center text-base font-semibold text-gray-700">
                 清空
@@ -219,7 +260,7 @@ const IndexPage = () => {
             </View>
             <View
               onClick={handleSearch}
-              className="flex-1 bg-blue-500 rounded-lg py-3"
+              className="flex-1 bg-orange-500 rounded-xl py-4 shadow-md active:bg-orange-600 transition-colors"
             >
               <Text className="block text-center text-base font-semibold text-white">
                 搜索
@@ -230,91 +271,107 @@ const IndexPage = () => {
       </View>
 
       {/* 账单列表 */}
-      <View className="px-4 py-6">
-        {loading ? (
-          <View className="flex items-center justify-center py-12">
-            <Text className="block text-base text-gray-700">加载中...</Text>
-          </View>
-        ) : accounts.length === 0 ? (
-          <View className="flex flex-col items-center justify-center py-20">
-            <Text className="text-6xl mb-4">{searchKeyword || startDate || endDate ? '🔍' : '📋'}</Text>
-            <Text className="block text-lg text-gray-700 font-semibold mb-2">
-              {searchKeyword || startDate || endDate ? '未找到匹配的账单' : '暂无账单记录'}
-            </Text>
-            <Text className="block text-base text-gray-600 text-center mb-6">
-              {searchKeyword || startDate || endDate
-                ? '请尝试调整搜索条件'
-                : '点击右上角&quot;+&quot;开始记录'}
-            </Text>
-            {(searchKeyword || startDate || endDate) ? (
-              <View
-                onClick={handleClearSearch}
-                className="bg-gray-200 rounded-xl px-8 py-4"
-              >
-                <Text className="block text-gray-700 text-lg font-semibold">
-                  清空搜索
-                </Text>
-              </View>
-            ) : (
-              <View
-                onClick={goToAddPage}
-                className="bg-orange-500 rounded-xl px-8 py-4"
-              >
-                <Text className="block text-white text-lg font-semibold">
-                  新增账单
-                </Text>
-              </View>
-            )}
-          </View>
-        ) : (
-          <View className="flex flex-col gap-3">
-            {accounts.map((account) => (
-              <View
-                key={account.id}
-                onClick={() => goToDetailPage(account.id)}
-                className="bg-white rounded-xl p-4 shadow-sm border-2 border-gray-200"
-              >
-                <View className="flex justify-between items-center mb-3">
-                  <Text className="block text-lg font-semibold text-gray-900 flex-1">
-                    {account.customer_name}
-                  </Text>
-                  <Text className="block text-lg font-bold text-orange-500 ml-3">
-                    ¥ {account.amount.toFixed(2)}
+      <ScrollView scrollY className="h-screen pb-24">
+        <View className="px-4 py-4">
+          {loading ? (
+            <View className="flex items-center justify-center py-12">
+              <Text className="block text-base text-gray-700">加载中...</Text>
+            </View>
+          ) : accounts.length === 0 ? (
+            <View className="flex flex-col items-center justify-center py-20">
+              <Text className="text-6xl mb-4">{searchKeyword || startDate || endDate ? '🔍' : '📋'}</Text>
+              <Text className="block text-lg text-gray-700 font-semibold mb-2">
+                {searchKeyword || startDate || endDate ? '未找到匹配的账单' : '暂无账单记录'}
+              </Text>
+              <Text className="block text-base text-gray-600 text-center mb-6">
+                {searchKeyword || startDate || endDate
+                  ? '请尝试调整搜索条件'
+                  : '点击右上角&quot;+&quot;开始记录'}
+              </Text>
+              {(searchKeyword || startDate || endDate) ? (
+                <View
+                  onClick={handleClearSearch}
+                  className="bg-gray-200 rounded-xl px-8 py-4"
+                >
+                  <Text className="block text-gray-700 text-lg font-semibold">
+                    清空搜索
                   </Text>
                 </View>
-
-                <View className="flex flex-col gap-1 mb-3">
-                  <Text className="block text-base text-gray-700">
-                    {account.item_description}
-                  </Text>
-                  <Text className="block text-sm text-gray-600">
-                    {account.phone}
+              ) : (
+                <View
+                  onClick={goToAddPage}
+                  className="bg-orange-500 rounded-xl px-8 py-4"
+                >
+                  <Text className="block text-white text-lg font-semibold">
+                    新增账单
                   </Text>
                 </View>
+              )}
+            </View>
+          ) : (
+            <View className="flex flex-col gap-4">
+              {groupedAccounts.map((group) => (
+                <View key={group.date} className="bg-white rounded-2xl shadow-md overflow-hidden">
+                  {/* 日期分组标题 */}
+                  <View className="bg-gradient-to-r from-orange-100 to-orange-50 px-4 py-3 border-b border-orange-200">
+                    <View className="flex justify-between items-center">
+                      <Text className="block text-lg font-bold text-orange-800">
+                        📅 {group.date}
+                      </Text>
+                      <Text className="block text-base font-semibold text-orange-700">
+                        {group.items.length} 笔账单
+                      </Text>
+                    </View>
+                  </View>
 
-                <View className="flex justify-between items-center">
-                  <Text className="block text-sm text-gray-600">
-                    {account.account_date}
-                  </Text>
-                  <View className={`px-3 py-1 rounded-lg ${account.is_paid ? 'bg-green-100' : 'bg-yellow-100'}`}>
-                    <Text className={`block text-sm font-semibold ${account.is_paid ? 'text-green-700' : 'text-yellow-700'}`}>
-                      {account.is_paid ? '已付款' : '待付款'}
-                    </Text>
+                  {/* 该日期下的账单列表 */}
+                  <View className="p-3">
+                    {group.items.map((account) => (
+                      <View
+                        key={account.id}
+                        onClick={() => goToDetailPage(account.id)}
+                        className="border-b border-gray-100 last:border-b-0 py-3"
+                      >
+                        <View className="flex justify-between items-center mb-2">
+                          <Text className="block text-lg font-semibold text-gray-900 flex-1">
+                            {account.customer_name}
+                          </Text>
+                          <Text className="block text-lg font-bold text-orange-500 ml-3">
+                            ¥ {account.amount.toFixed(2)}
+                          </Text>
+                        </View>
+
+                        <View className="flex flex-col gap-1 mb-2">
+                          <Text className="block text-base text-gray-700">
+                            {account.item_description}
+                          </Text>
+                          <Text className="block text-sm text-gray-600">
+                            📞 {account.phone}
+                          </Text>
+                        </View>
+
+                        <View className="flex justify-between items-center">
+                          <View className={`px-3 py-1 rounded-lg ${account.is_paid ? 'bg-green-100' : 'bg-yellow-100'}`}>
+                            <Text className={`block text-sm font-semibold ${account.is_paid ? 'text-green-700' : 'text-yellow-700'}`}>
+                              {account.is_paid ? '✓ 已付款' : '⏳ 待付款'}
+                            </Text>
+                          </View>
+
+                          {account.has_image && (
+                            <Text className="block text-sm text-blue-500">
+                              📷 有凭证
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    ))}
                   </View>
                 </View>
-
-                {account.has_image && (
-                  <View className="mt-2 pt-2 border-t border-gray-200">
-                    <Text className="block text-sm text-blue-500">
-                      📷 有凭证图片
-                    </Text>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   )
 }

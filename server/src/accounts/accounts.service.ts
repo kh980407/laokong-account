@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { getSupabaseClient } from '../storage/database/supabase-client'
+import * as XLSX from 'xlsx'
 
 @Injectable()
 export class AccountsService {
@@ -118,5 +119,52 @@ export class AccountsService {
     }
 
     return { message: 'Account deleted successfully' }
+  }
+
+  // 导出 Excel
+  async exportExcel(searchParams?: { keyword?: string; startDate?: string; endDate?: string }) {
+    console.log('导出 Excel，搜索参数:', searchParams)
+
+    const accounts = await this.findAll(searchParams)
+
+    // 准备 Excel 数据
+    const excelData = accounts.map(account => ({
+      '日期': account.account_date,
+      '客户姓名': account.customer_name,
+      '联系电话': account.phone,
+      '商品描述': account.item_description,
+      '金额': account.amount,
+      '付款状态': account.is_paid ? '已付款' : '待付款',
+      '创建时间': account.created_at
+    }))
+
+    // 创建工作簿
+    const worksheet = XLSX.utils.json_to_sheet(excelData)
+
+    // 设置列宽
+    worksheet['!cols'] = [
+      { wch: 15 }, // 日期
+      { wch: 15 }, // 客户姓名
+      { wch: 15 }, // 联系电话
+      { wch: 30 }, // 商品描述
+      { wch: 10 }, // 金额
+      { wch: 10 }, // 付款状态
+      { wch: 20 }  // 创建时间
+    ]
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, '账单明细')
+
+    // 生成文件名
+    const now = new Date()
+    const dateStr = now.toISOString().split('T')[0]
+    const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-')
+    const filename = `电子账单_${dateStr}_${timeStr}.xlsx`
+
+    // 生成 Buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+
+    console.log(`导出 Excel 成功，文件名: ${filename}, 数据量: ${accounts.length} 条`)
+    return { buffer, filename }
   }
 }
