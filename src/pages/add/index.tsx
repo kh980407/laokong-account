@@ -83,8 +83,8 @@ const AddAccountPage = () => {
         const recognizedText = asrRes.data.data.text
         console.log('识别结果:', recognizedText)
 
-        // 简单解析识别结果（实际可以使用 AI 提取）
-        parseRecognizedText(recognizedText)
+        // 使用 AI 结构化提取信息
+        await parseRecognizedTextWithAI(recognizedText)
 
         Taro.showToast({
           title: '识别成功',
@@ -104,26 +104,105 @@ const AddAccountPage = () => {
     }
   }
 
-  // 解析识别的文本并填充表单
-  const parseRecognizedText = (text: string) => {
-    console.log('解析文本:', text)
+  // 使用 AI 解析识别的文本并填充表单
+  const parseRecognizedTextWithAI = async (text: string) => {
+    try {
+      Taro.showLoading({ title: '正在分析...' })
 
-    // 简单提取金额
-    const amountMatch = text.match(/(\d+\.?\d*)\s*元/)
-    if (amountMatch) {
-      setFormData(prev => ({ ...prev, amount: amountMatch[1] }))
+      const aiRes = await Network.request({
+        url: '/api/ai/parse-voice',
+        method: 'POST',
+        data: { text }
+      })
+
+      console.log('AI 解析响应:', aiRes)
+
+      if (aiRes.data?.data) {
+        const extractedData = aiRes.data.data
+
+        // 填充表单
+        setFormData(prev => ({
+          ...prev,
+          customerName: extractedData.customer_name || prev.customerName,
+          phone: extractedData.phone || prev.phone,
+          amount: extractedData.amount ? String(extractedData.amount) : prev.amount,
+          itemDescription: extractedData.item_description || prev.itemDescription,
+          isPaid: extractedData.is_paid !== undefined ? extractedData.is_paid : prev.isPaid,
+          accountDate: extractedData.account_date || prev.accountDate
+        }))
+
+        Taro.showToast({
+          title: '自动填充成功',
+          icon: 'success'
+        })
+      }
+    } catch (error) {
+      console.error('AI 解析失败:', error)
+      Taro.showToast({
+        title: 'AI解析失败，请手动输入',
+        icon: 'none'
+      })
+    } finally {
+      Taro.hideLoading()
+    }
+  }
+
+  // 图片识别
+  const handleImageRecognition = async () => {
+    if (!imageUrl) {
+      Taro.showToast({ title: '请先上传凭证图片', icon: 'none' })
+      return
     }
 
-    // 提取电话号码
-    const phoneMatch = text.match(/1[3-9]\d{9}/)
-    if (phoneMatch) {
-      setFormData(prev => ({ ...prev, phone: phoneMatch[0] }))
-    }
+    try {
+      Taro.showLoading({ title: '正在识别...' })
 
-    // 其余作为商品描述
-    const desc = text.replace(/(\d+\.?\d*)\s*元/, '').replace(/1[3-9]\d{9}/, '').trim()
-    if (desc) {
-      setFormData(prev => ({ ...prev, itemDescription: desc }))
+      const aiRes = await Network.request({
+        url: '/api/ai/parse-image',
+        method: 'POST',
+        data: { imageUrl }
+      })
+
+      console.log('图片识别响应:', aiRes)
+
+      if (aiRes.data?.data && Array.isArray(aiRes.data.data) && aiRes.data.data.length > 0) {
+        const extractedData = aiRes.data.data[0]
+
+        // 填充表单
+        setFormData(prev => ({
+          ...prev,
+          customerName: extractedData.customer_name || prev.customerName,
+          phone: extractedData.phone || prev.phone,
+          amount: extractedData.amount ? String(extractedData.amount) : prev.amount,
+          itemDescription: extractedData.item_description || prev.itemDescription,
+          isPaid: extractedData.is_paid !== undefined ? extractedData.is_paid : prev.isPaid,
+          accountDate: extractedData.account_date || prev.accountDate
+        }))
+
+        Taro.showToast({
+          title: '识别成功',
+          icon: 'success'
+        })
+
+        // 如果识别出多条记录，提示用户
+        if (aiRes.data.data.length > 1) {
+          Taro.showModal({
+            title: '识别到多条记录',
+            content: `识别到 ${aiRes.data.data.length} 条记录，当前显示第1条。请确认后保存，然后继续录入下一条。`,
+            showCancel: false
+          })
+        }
+      } else {
+        throw new Error('识别失败，未获取到账单信息')
+      }
+    } catch (error) {
+      console.error('图片识别失败:', error)
+      Taro.showToast({
+        title: '识别失败，请手动输入',
+        icon: 'none'
+      })
+    } finally {
+      Taro.hideLoading()
     }
   }
 
@@ -436,22 +515,38 @@ const AddAccountPage = () => {
         {/* 图片上传区域 */}
         <View className="bg-white rounded-2xl p-6 mb-4 border-2 border-gray-200">
           <Text className="block text-lg font-bold text-gray-900 mb-4">
-            凭证图片（可选）
+            方式三：图片识别（自动提取）
           </Text>
 
           {imageUrl ? (
-            <View className="relative">
-              <Image
-                src={imageUrl}
-                className="w-full h-48 rounded-xl object-cover"
-                mode="aspectFill"
-              />
-              <View
-                onClick={() => setImageUrl('')}
-                className="absolute top-2 right-2 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center"
-              >
-                <Text className="block text-white text-sm">×</Text>
+            <View className="flex flex-col gap-3">
+              <View className="relative">
+                <Image
+                  src={imageUrl}
+                  className="w-full h-48 rounded-xl object-cover"
+                  mode="aspectFill"
+                />
+                <View
+                  onClick={() => setImageUrl('')}
+                  className="absolute top-2 right-2 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center"
+                >
+                  <Text className="block text-white text-sm">×</Text>
+                </View>
               </View>
+
+              {/* 图片识别按钮 */}
+              <View
+                onClick={handleImageRecognition}
+                className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl py-3 flex items-center justify-center"
+              >
+                <Text className="block text-base font-semibold text-white">
+                  🤖 自动识别图片信息
+                </Text>
+              </View>
+
+              <Text className="block text-sm text-gray-500 text-center">
+                点击按钮自动提取图片中的账单信息
+              </Text>
             </View>
           ) : (
             <View
@@ -464,7 +559,7 @@ const AddAccountPage = () => {
                   点击上传凭证图片
                 </Text>
                 <Text className="block text-sm text-gray-500 mt-1">
-                  支持拍照或相册选择
+                  支持拍照或相册选择，可自动识别
                 </Text>
               </View>
             </View>

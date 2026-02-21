@@ -113,6 +113,72 @@ const DetailPage = () => {
     }
   }
 
+  // 预览图片
+  const handlePreviewImage = (url: string) => {
+    Taro.previewImage({
+      urls: [url],
+      current: url
+    })
+  }
+
+  // 保存图片到相册
+  const handleSaveImage = async (url: string) => {
+    try {
+      Taro.showLoading({ title: '保存中...' })
+
+      // 下载图片
+      const downloadRes = await Network.downloadFile({
+        url
+      })
+
+      console.log('下载图片响应:', downloadRes)
+
+      if (downloadRes.tempFilePath) {
+        // 保存到相册
+        await Taro.saveImageToPhotosAlbum({
+          filePath: downloadRes.tempFilePath
+        })
+
+        Taro.hideLoading()
+        Taro.showToast({
+          title: '保存成功',
+          icon: 'success'
+        })
+      } else {
+        throw new Error('下载失败')
+      }
+    } catch (error) {
+      console.error('保存图片失败:', error)
+      Taro.hideLoading()
+
+      // 如果是用户拒绝授权，提示用户去设置
+      if (error.errMsg && error.errMsg.includes('auth deny')) {
+        Taro.showModal({
+          title: '需要相册权限',
+          content: '请前往设置开启相册权限',
+          showCancel: false,
+          success: (res) => {
+            if (res.confirm) {
+              Taro.openSetting()
+            }
+          }
+        })
+      } else {
+        Taro.showToast({
+          title: '保存失败',
+          icon: 'none'
+        })
+      }
+    }
+  }
+
+  // 编辑账单
+  const handleEdit = (accountId: number) => {
+    Taro.navigateTo({
+      url: `/pages/edit/index?id=${accountId}`
+    })
+  }
+
   useEffect(() => {
     loadAccount()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,7 +257,16 @@ const DetailPage = () => {
                 src={account.image_url}
                 className="w-full rounded-xl"
                 mode="widthFix"
+                onClick={() => handlePreviewImage(account.image_url)}
               />
+              <View
+                onClick={() => handleSaveImage(account.image_url)}
+                className="mt-3 bg-blue-50 rounded-xl py-3 px-4 border border-blue-200"
+              >
+                <Text className="block text-center text-base font-semibold text-blue-600">
+                  💾 保存图片到相册
+                </Text>
+              </View>
             </View>
           )}
         </View>
@@ -217,6 +292,16 @@ const DetailPage = () => {
           zIndex: 100
         }}
         >
+          <View
+            onClick={() => handleEdit(account.id)}
+            style={{ flex: 1 }}
+          >
+            <View className="w-full bg-blue-500 rounded-xl py-4">
+              <Text className="block text-center text-base font-semibold text-white">
+                编辑
+              </Text>
+            </View>
+          </View>
           <View
             onClick={togglePaymentStatus}
             style={{ flex: 1 }}

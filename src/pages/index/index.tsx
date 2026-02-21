@@ -24,6 +24,17 @@ const IndexPage = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
+  // 折叠状态管理（按日期）
+  const [collapsedDates, setCollapsedDates] = useState<Record<string, boolean>>({})
+
+  // 切换日期组的折叠状态
+  const toggleDateCollapse = (date: string) => {
+    setCollapsedDates(prev => ({
+      ...prev,
+      [date]: !prev[date]
+    }))
+  }
+
   // 加载账单列表
   const loadAccounts = async (searchParams?: { keyword?: string; startDate?: string; endDate?: string }) => {
     setLoading(true)
@@ -310,64 +321,77 @@ const IndexPage = () => {
             </View>
           ) : (
             <View className="flex flex-col gap-4">
-              {groupedAccounts.map((group) => (
-                <View key={group.date} className="bg-white rounded-2xl shadow-md overflow-hidden">
-                  {/* 日期分组标题 */}
-                  <View className="bg-gradient-to-r from-orange-100 to-orange-50 px-4 py-3 border-b border-orange-200">
-                    <View className="flex justify-between items-center">
-                      <Text className="block text-lg font-bold text-orange-800">
-                        📅 {group.date}
-                      </Text>
-                      <Text className="block text-base font-semibold text-orange-700">
-                        {group.items.length} 笔账单
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* 该日期下的账单列表 */}
-                  <View className="p-3">
-                    {group.items.map((account) => (
-                      <View
-                        key={account.id}
-                        onClick={() => goToDetailPage(account.id)}
-                        className="border-b border-gray-100 last:border-b-0 py-3"
-                      >
-                        <View className="flex justify-between items-center mb-2">
-                          <Text className="block text-lg font-semibold text-gray-900 flex-1">
-                            {account.customer_name}
+              {groupedAccounts.map((group) => {
+                const isCollapsed = collapsedDates[group.date]
+                return (
+                  <View key={group.date} className="bg-white rounded-2xl shadow-md overflow-hidden">
+                    {/* 日期分组标题 - 可点击折叠/展开 */}
+                    <View
+                      onClick={() => toggleDateCollapse(group.date)}
+                      className="bg-gradient-to-r from-orange-100 to-orange-50 px-4 py-3 border-b border-orange-200 cursor-pointer"
+                    >
+                      <View className="flex justify-between items-center">
+                        <View className="flex items-center gap-2">
+                          <Text className="block text-lg font-bold text-orange-800">
+                            📅 {group.date}
                           </Text>
-                          <Text className="block text-lg font-bold text-orange-500 ml-3">
-                            ¥ {account.amount.toFixed(2)}
+                          <Text className="block text-base font-semibold text-orange-700">
+                            {group.items.length} 笔账单
                           </Text>
                         </View>
-
-                        <View className="flex flex-col gap-1 mb-2">
-                          <Text className="block text-base text-gray-700">
-                            {account.item_description}
-                          </Text>
-                          <Text className="block text-sm text-gray-600">
-                            📞 {account.phone}
-                          </Text>
-                        </View>
-
-                        <View className="flex justify-between items-center">
-                          <View className={`px-3 py-1 rounded-lg ${account.is_paid ? 'bg-green-100' : 'bg-yellow-100'}`}>
-                            <Text className={`block text-sm font-semibold ${account.is_paid ? 'text-green-700' : 'text-yellow-700'}`}>
-                              {account.is_paid ? '✓ 已付款' : '⏳ 待付款'}
-                            </Text>
-                          </View>
-
-                          {account.has_image && (
-                            <Text className="block text-sm text-blue-500">
-                              📷 有凭证
-                            </Text>
-                          )}
-                        </View>
+                        <Text className="block text-2xl text-orange-600">
+                          {isCollapsed ? '▶' : '▼'}
+                        </Text>
                       </View>
-                    ))}
+                    </View>
+
+                    {/* 该日期下的账单列表 - 根据折叠状态显示 */}
+                    {!isCollapsed && (
+                      <View className="p-3">
+                        {group.items.map((account) => (
+                          <View
+                            key={account.id}
+                            onClick={() => goToDetailPage(account.id)}
+                            className="border-b border-gray-100 last:border-b-0 py-3"
+                          >
+                            <View className="flex justify-between items-center mb-2">
+                              <Text className="block text-lg font-semibold text-gray-900 flex-1">
+                                {account.customer_name}
+                              </Text>
+                              <Text className="block text-lg font-bold text-orange-500 ml-3">
+                                ¥ {account.amount.toFixed(2)}
+                              </Text>
+                            </View>
+
+                            <View className="flex flex-col gap-1 mb-2">
+                              <Text className="block text-base text-gray-700">
+                                {account.item_description}
+                              </Text>
+                              <Text className="block text-sm text-gray-600">
+                                📞 {account.phone}
+                              </Text>
+                            </View>
+
+                            <View className="flex justify-between items-center">
+                              <View className={`px-3 py-1 rounded-lg ${account.is_paid ? 'bg-green-100' : 'bg-yellow-100'}`}>
+                                <Text className={`block text-sm font-semibold ${account.is_paid ? 'text-green-700' : 'text-yellow-700'}`}>
+                                  {account.is_paid ? '✓ 已付款' : '⏳ 待付款'}
+                                </Text>
+                              </View>
+
+                              {account.has_image && (
+                                <Text className="block text-sm text-blue-500">
+                                  📷 有凭证
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
                   </View>
-                </View>
-              ))}
+                )
+              })}
             </View>
           )}
         </View>
