@@ -315,9 +315,10 @@ const IndexPage = () => {
 
       {/* 统计信息卡片 */}
       <View className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-5 pb-6 shadow-xl border-b-4 border-teal-600">
+        {/* 标题区域 */}
         <View className="flex items-center gap-4 mb-4">
-          <View className="w-14 h-14 bg-white bg-opacity-30 rounded-2xl flex items-center justify-center shadow-md backdrop-blur-sm">
-            <Text className="text-5xl">📔</Text>
+          <View className="w-12 h-12 bg-white bg-opacity-30 rounded-2xl flex items-center justify-center shadow-md backdrop-blur-sm">
+            <Text className="text-4xl">📔</Text>
           </View>
           <View>
             <Text className="block text-2xl font-bold text-white">老孔记账本</Text>
@@ -325,10 +326,11 @@ const IndexPage = () => {
           </View>
         </View>
 
-        <View className="flex justify-between gap-3">
-          <View className="flex-1 bg-white bg-opacity-30 rounded-xl p-4 backdrop-blur-sm shadow-md">
-            <View className="flex flex-col items-center gap-2 mb-1">
-              <Text className="text-5xl">💰</Text>
+        {/* 数据统计区域 */}
+        <View className="flex justify-between gap-2">
+          <View className="flex-1 bg-white bg-opacity-30 rounded-xl p-3 backdrop-blur-sm shadow-md">
+            <View className="flex flex-col items-center gap-1 mb-1">
+              <Text className="text-4xl">💰</Text>
               <Text className="block text-base text-white font-semibold">总金额</Text>
             </View>
             <View className="flex justify-center mt-1">
@@ -337,9 +339,9 @@ const IndexPage = () => {
               </Text>
             </View>
           </View>
-          <View className="flex-1 bg-white bg-opacity-30 rounded-xl p-4 backdrop-blur-sm shadow-md">
-            <View className="flex flex-col items-center gap-2 mb-1">
-              <Text className="text-5xl">📋</Text>
+          <View className="flex-1 bg-white bg-opacity-30 rounded-xl p-3 backdrop-blur-sm shadow-md">
+            <View className="flex flex-col items-center gap-1 mb-1">
+              <Text className="text-4xl">📋</Text>
               <Text className="block text-base text-white font-semibold">待收款</Text>
             </View>
             <View className="flex justify-center mt-1">
@@ -507,7 +509,7 @@ const IndexPage = () => {
               <Text className="block text-lg text-gray-600 text-center mb-6">
                 {searchKeyword || startDate || endDate
                   ? '请尝试调整搜索条件'
-                  : '点击右上角&quot;+&quot;开始记录'}
+                  : '点击右上角 + 开始记录'}
               </Text>
               {(searchKeyword || startDate || endDate) ? (
                 <View
