@@ -169,8 +169,9 @@ export class UploadService {
         duration: result.duration
       }
     } catch (error) {
-      console.error('语音识别失败:', error)
-      throw new BadRequestException(`语音识别失败: ${error.message}`)
+      const msg = error instanceof Error ? error.message : String(error)
+      console.error('语音识别失败:', msg, error)
+      throw new BadRequestException(`语音识别失败: ${msg}`)
     }
   }
 }

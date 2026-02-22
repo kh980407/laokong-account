@@ -70,7 +70,7 @@ export class UploadController {
     } catch {
       return { code: 400, msg: 'audioBase64 格式错误', data: null }
     }
-    const baseUrl = `${req.protocol}://${req.get('host')}`
+    const baseUrl = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`
     const result = await this.uploadService.uploadAudioFromBuffer(buffer, baseUrl)
     return { code: 200, msg: 'success', data: result }
   }

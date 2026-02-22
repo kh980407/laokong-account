@@ -76,6 +76,14 @@ const AddAccountPage = () => {
         Taro.showToast({ title: '语音服务未就绪，请部署后端最新版本', icon: 'none' })
         return
       }
+      if (status === 503) {
+        Taro.showToast({
+          title: '语音需配置对象存储，请在 Railway 添加 COZE_BUCKET_* 变量',
+          icon: 'none',
+          duration: 3500
+        })
+        return
+      }
 
       const uploadData = uploadRes.data as { code?: number; data?: { url?: string } }
       const audioUrl = uploadData?.data?.url
@@ -93,11 +101,18 @@ const AddAccountPage = () => {
 
       console.log('语音识别响应:', asrRes)
 
-      if (asrRes.data?.data?.text) {
-        const recognizedText = asrRes.data.data.text
+      const asrStatus = asrRes.statusCode ?? (asrRes as { status?: number }).status
+      const asrData = asrRes.data as { message?: string; data?: { text?: string } }
+      if (asrStatus >= 400) {
+        const msg = asrData?.message || '语音识别服务异常'
+        Taro.showToast({ title: msg, icon: 'none', duration: 3500 })
+        return
+      }
+
+      if (asrData?.data?.text) {
+        const recognizedText = asrData.data.text
         console.log('识别结果:', recognizedText)
 
-        // 使用 AI 结构化提取信息
         await parseRecognizedTextWithAI(recognizedText)
 
         Taro.showToast({
@@ -105,7 +120,10 @@ const AddAccountPage = () => {
           icon: 'success'
         })
       } else {
-        throw new Error('识别失败，未获取到文本')
+        Taro.showToast({
+          title: asrData?.message || '未识别到有效内容，请重说一次',
+          icon: 'none'
+        })
       }
     } catch (error) {
       console.error('语音识别失败:', error)
