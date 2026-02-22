@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "description": "Coze Mini Program Application",
+  "pnpm": {
+    "overrides": {
+      "esbuild": "0.18.20"
+    }
+  },
   "scripts": {
     "build": "pnpm exec concurrently -n lint,tsc,web,weapp,server -c red,blue,green,yellow,magenta \"pnpm lint:build\" \"pnpm tsc\" \"pnpm build:web\" \"pnpm build:weapp\" \"pnpm build:server\"",
     "build:server": "pnpm --filter server build",

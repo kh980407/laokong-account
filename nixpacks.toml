@@ -1,0 +1,9 @@
+# Railway 仅构建并运行 server（后端）
+[phases.install]
+cmds = ["pnpm install"]
+
+[phases.build]
+cmds = ["pnpm run build:server"]
+
+[start]
+cmd = "node server/dist/main"
