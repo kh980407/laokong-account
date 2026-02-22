@@ -170,7 +170,8 @@ export class UploadService {
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      console.error('语音识别失败:', msg, error)
+      const stack = error instanceof Error ? error.stack : undefined
+      console.error('语音识别失败:', msg, 'stack:', stack)
       throw new BadRequestException(`语音识别失败: ${msg}`)
     }
   }

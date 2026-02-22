@@ -101,11 +101,12 @@ const AddAccountPage = () => {
 
       console.log('语音识别响应:', asrRes)
 
-      const asrStatus = asrRes.statusCode ?? (asrRes as { status?: number }).status
+      const asrStatus = (asrRes as { statusCode?: number }).statusCode ?? (asrRes as { status?: number }).status
       const asrData = asrRes.data as { message?: string; data?: { text?: string } }
-      if (asrStatus >= 400) {
+      if ((asrStatus ?? 0) >= 400) {
         const msg = asrData?.message || '语音识别服务异常'
-        Taro.showToast({ title: msg, icon: 'none', duration: 3500 })
+        console.log('ASR 错误:', asrStatus, asrData)
+        Taro.showToast({ title: msg, icon: 'none', duration: 4000 })
         return
       }
 
