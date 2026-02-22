@@ -54,6 +54,7 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "esbuild": "0.18.20",
     "@babel/core": "^7.24.4",
     "@babel/plugin-transform-class-properties": "7.25.9",
     "@babel/preset-react": "^7.24.1",
