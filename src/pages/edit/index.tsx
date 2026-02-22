@@ -72,16 +72,27 @@ const EditAccountPage = () => {
       })
 
       if (res.tempFilePaths && res.tempFilePaths.length > 0) {
-        const uploadRes = await Network.uploadFile({
-          url: '/api/upload/image',
-          filePath: res.tempFilePaths[0],
-          name: 'file'
+        const fs = Taro.getFileSystemManager()
+        const base64 = await new Promise<string>((resolve, reject) => {
+          fs.readFile({
+            filePath: res.tempFilePaths[0],
+            encoding: 'base64',
+            success: (r) => resolve((r as { data: string }).data),
+            fail: reject
+          })
         })
-
-        console.log('图片上传响应:', uploadRes)
-        const uploadData = JSON.parse(uploadRes.data)
-        const url = uploadData.data?.url
-
+        const uploadRes = await Network.request({
+          url: '/api/upload/image-base64',
+          method: 'POST',
+          data: { imageBase64: base64, mimeType: 'image/jpeg' }
+        })
+        const status = uploadRes.statusCode ?? (uploadRes as { status?: number }).status
+        if (status >= 400) {
+          Taro.showToast({ title: '上传失败', icon: 'none' })
+          return
+        }
+        const uploadData = uploadRes.data as { data?: { url?: string } }
+        const url = uploadData?.data?.url
         if (url) {
           setImageUrl(url)
           Taro.showToast({ title: '上传成功', icon: 'success' })

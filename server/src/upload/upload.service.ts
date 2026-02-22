@@ -13,7 +13,7 @@ export class UploadService {
     const endpoint = process.env.COZE_BUCKET_ENDPOINT_URL
     const bucket = process.env.COZE_BUCKET_NAME
     if (!endpoint || !bucket) {
-      console.warn('COZE_BUCKET_ENDPOINT_URL 或 COZE_BUCKET_NAME 未配置，图片/音频上传将不可用')
+      console.warn('COZE_BUCKET_* 未配置：图片上传不可用；语音经 base64 接口仍可用（内存暂存）')
     }
     this.s3Storage = new S3Storage({
       endpointUrl: endpoint || '',
@@ -30,9 +30,11 @@ export class UploadService {
     }
   }
 
-  /** 无对象存储时用内存暂存音频，供 ASR 通过临时 URL 拉取 */
+  /** 无对象存储时用内存暂存音频/图片，供临时 URL 拉取 */
   private tempAudioMap = new Map<string, { buffer: Buffer; timeout: NodeJS.Timeout }>()
+  private tempImageMap = new Map<string, { buffer: Buffer; mime: string; timeout: NodeJS.Timeout }>()
   private readonly TEMP_AUDIO_TTL_MS = 5 * 60 * 1000
+  private readonly TEMP_IMAGE_TTL_MS = 30 * 60 * 1000
 
   storeTempAudio(buffer: Buffer): string {
     const id = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
@@ -51,37 +53,59 @@ export class UploadService {
     return entry.buffer
   }
 
+  storeTempImage(buffer: Buffer, mime: string): string {
+    const id = `img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const timeout = setTimeout(() => this.tempImageMap.delete(id), this.TEMP_IMAGE_TTL_MS)
+    this.tempImageMap.set(id, { buffer, mime, timeout })
+    return id
+  }
+
+  getTempImage(id: string): { buffer: Buffer; mime: string } | null {
+    const entry = this.tempImageMap.get(id)
+    return entry ? { buffer: entry.buffer, mime: entry.mime } : null
+  }
+
   hasBucketConfig(): boolean {
     return !!(process.env.COZE_BUCKET_ENDPOINT_URL && process.env.COZE_BUCKET_NAME)
   }
 
-  // 上传图片
-  async uploadImage(file: Express.Multer.File) {
-    this.checkBucketConfig()
-    console.log('上传图片:', file.originalname, '大小:', file.size)
-
+  // 上传图片。有对象存储用 S3；无则内存暂存返回临时 URL
+  async uploadImage(file: Express.Multer.File, baseUrl?: string): Promise<{ key: string; url: string }> {
     if (!file || !file.buffer) {
       throw new BadRequestException('文件不存在')
     }
+    return this.uploadImageFromBuffer(file.buffer, baseUrl, file.originalname, file.mimetype)
+  }
 
-    // 上传到对象存储
-    const fileKey = await this.s3Storage.uploadFile({
-      fileContent: file.buffer,
-      fileName: `account-images/${Date.now()}-${file.originalname}`,
-      contentType: file.mimetype
-    })
-
-    console.log('图片上传成功, key:', fileKey)
-
-    // 生成签名 URL
-    const imageUrl = await this.s3Storage.generatePresignedUrl({
-      key: fileKey,
-      expireTime: 86400 * 30 // 30 天有效期
-    })
-
-    console.log('生成图片 URL:', imageUrl)
-
-    return { key: fileKey, url: imageUrl }
+  async uploadImageFromBuffer(
+    buffer: Buffer,
+    baseUrl?: string,
+    fileName = `image-${Date.now()}.jpg`,
+    mimeType = 'image/jpeg',
+  ): Promise<{ key: string; url: string }> {
+    if (!buffer || buffer.length === 0) {
+      throw new BadRequestException('文件不存在')
+    }
+    if (this.hasBucketConfig()) {
+      this.checkBucketConfig()
+      const fileKey = await this.s3Storage.uploadFile({
+        fileContent: buffer,
+        fileName: `account-images/${Date.now()}-${fileName}`,
+        contentType: mimeType,
+      })
+      const imageUrl = await this.s3Storage.generatePresignedUrl({
+        key: fileKey,
+        expireTime: 86400 * 30,
+      })
+      return { key: fileKey, url: imageUrl }
+    }
+    if (!baseUrl) {
+      throw new ServiceUnavailableException('对象存储未配置且无法生成临时 URL')
+    }
+    const id = this.storeTempImage(buffer, mimeType)
+    const url = `${baseUrl.replace(/\/$/, '')}/api/upload/image-temp/${id}`
+    console.log('图片使用内存暂存, 临时 URL:', url)
+    return { key: id, url }
   }
 
   // 上传音频（从 Buffer）。有对象存储则用 S3；无则用内存暂存并返回临时 URL（需传入 baseUrl）
@@ -146,12 +170,14 @@ export class UploadService {
     return { key: fileKey, url: audioUrl }
   }
 
-  // 语音识别
-  async recognizeSpeech(audioUrl: string, headers?: Record<string, string>) {
-    console.log('语音识别, audioUrl:', audioUrl)
-
-    if (!audioUrl) {
-      throw new BadRequestException('音频 URL 不能为空')
+  // 语音识别。优先 base64Data（避免 Invalid URL），否则用 url
+  async recognizeSpeech(
+    options: { audioUrl?: string; audioBase64?: string },
+    headers?: Record<string, string>,
+  ) {
+    const { audioUrl, audioBase64 } = options
+    if (!audioUrl && !audioBase64) {
+      throw new BadRequestException('请提供 audioUrl 或 audioBase64')
     }
     if (!process.env.COZE_WORKLOAD_IDENTITY_API_KEY) {
       throw new ServiceUnavailableException(
@@ -164,9 +190,9 @@ export class UploadService {
     const asrClient = new ASRClient(config, customHeaders)
 
     try {
-      const result = await asrClient.recognize({
-        url: audioUrl
-      })
+      const result = await asrClient.recognize(
+        audioBase64 ? { base64Data: audioBase64 } : { url: audioUrl! },
+      )
 
       console.log('语音识别结果:', result.text)
 

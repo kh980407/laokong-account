@@ -49,10 +49,10 @@ const AddAccountPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWeapp])
 
-  // 上传音频并进行语音识别（使用 base64 + request 走 request 合法域名，避免 uploadFile 域名未配置）
+  // 语音识别：直接传 base64 给 ASR，避免 URL 拉取导致 Invalid URL
   const uploadAndRecognize = async (audioPath: string) => {
     try {
-      console.log('[语音] 使用 base64+request 上传，不走 uploadFile')
+      console.log('[语音] base64 直传 ASR')
       Taro.showLoading({ title: '正在识别...' })
 
       const fs = Taro.getFileSystemManager()
@@ -65,46 +65,25 @@ const AddAccountPage = () => {
         })
       })
 
-      const uploadRes = await Network.request({
-        url: '/api/upload/audio-base64',
-        method: 'POST',
-        data: { audioBase64: base64 }
-      })
-
-      const status = uploadRes.statusCode ?? (uploadRes as { status?: number }).status
-      if (status === 404) {
-        Taro.showToast({ title: '语音服务未就绪，请部署后端最新版本', icon: 'none' })
-        return
-      }
-      if (status === 503) {
-        Taro.showToast({
-          title: '语音需配置对象存储，请在 Railway 添加 COZE_BUCKET_* 变量',
-          icon: 'none',
-          duration: 3500
+      const maxRetries = 3
+      let asrRes: Taro.request.SuccessCallbackResult
+      for (let i = 0; i < maxRetries; i++) {
+        asrRes = await Network.request({
+          url: '/api/asr/recognize',
+          method: 'POST',
+          data: { audioBase64: base64 }
         })
-        return
+        const st = (asrRes as { statusCode?: number }).statusCode ?? (asrRes as { status?: number }).status
+        if (st !== 503 || i === maxRetries - 1) break
+        await new Promise((r) => setTimeout(r, 2000))
       }
 
-      const uploadData = uploadRes.data as { code?: number; data?: { url?: string } }
-      const audioUrl = uploadData?.data?.url
+      console.log('语音识别响应:', asrRes!)
 
-      if (!audioUrl) {
-        throw new Error('上传失败，未获取到音频URL')
-      }
-
-      // 调用语音识别接口
-      const asrRes = await Network.request({
-        url: '/api/asr/recognize',
-        method: 'POST',
-        data: { audioUrl }
-      })
-
-      console.log('语音识别响应:', asrRes)
-
-      const asrStatus = (asrRes as { statusCode?: number }).statusCode ?? (asrRes as { status?: number }).status
-      const asrData = asrRes.data as { message?: string; data?: { text?: string } }
+      const asrStatus = (asrRes! as { statusCode?: number }).statusCode ?? (asrRes! as { status?: number }).status
+      const asrData = asrRes!.data as { message?: string; data?: { text?: string } }
       if ((asrStatus ?? 0) >= 400) {
-        const msg = asrData?.message || '语音识别服务异常'
+        const msg = asrStatus === 503 ? '服务繁忙，请稍后重试' : (asrData?.message || '语音识别服务异常')
         console.log('ASR 错误:', asrStatus, asrData)
         Taro.showToast({ title: msg, icon: 'none', duration: 4000 })
         return
@@ -347,7 +326,7 @@ const AddAccountPage = () => {
     recorderManager.stop()
   }
 
-  // 选择图片
+  // 选择图片（base64+request 绕过 uploadFile 合法域名限制，无 bucket 时内存暂存）
   const handleChooseImage = async () => {
     try {
       const res = await Taro.chooseImage({
@@ -359,30 +338,32 @@ const AddAccountPage = () => {
       if (res.tempFilePaths && res.tempFilePaths.length > 0) {
         setIsUploading(true)
 
-        const uploadRes = await Network.uploadFile({
-          url: '/api/upload/image',
-          filePath: res.tempFilePaths[0],
-          name: 'file'
+        const fs = Taro.getFileSystemManager()
+        const base64 = await new Promise<string>((resolve, reject) => {
+          fs.readFile({
+            filePath: res.tempFilePaths[0],
+            encoding: 'base64',
+            success: (r) => resolve((r as { data: string }).data),
+            fail: reject
+          })
         })
 
-        console.log('图片上传响应:', uploadRes)
+        const uploadRes = await Network.request({
+          url: '/api/upload/image-base64',
+          method: 'POST',
+          data: { imageBase64: base64, mimeType: 'image/jpeg' }
+        })
+
         const status = uploadRes.statusCode ?? (uploadRes as { status?: number }).status
         if (status >= 400) {
           Taro.showToast({
-            title: status === 500 ? '图片上传服务暂不可用，请检查后端配置' : '上传失败',
+            title: status === 503 ? '图片服务暂不可用' : '上传失败',
             icon: 'none'
           })
           return
         }
-        let uploadData: { data?: { url?: string } }
-        try {
-          uploadData = typeof uploadRes.data === 'string' ? JSON.parse(uploadRes.data) : uploadRes.data
-        } catch {
-          Taro.showToast({ title: '上传失败', icon: 'none' })
-          return
-        }
+        const uploadData = uploadRes.data as { data?: { url?: string } }
         const url = uploadData?.data?.url
-
         if (url) {
           setImageUrl(url)
           Taro.showToast({ title: '上传成功', icon: 'success' })
