@@ -343,7 +343,7 @@ const IndexPage = () => {
         <View className="flex justify-center mt-6">
           <View
             onClick={goToAddPage}
-            className="bg-white bg-opacity-30 rounded-full w-20 h-20 flex items-center justify-center shadow-lg backdrop-blur-sm active:bg-white active:bg-opacity-50 transition-colors"
+            className="bg-orange-500 rounded-full w-20 h-20 flex items-center justify-center shadow-xl active:bg-orange-600 transition-colors"
           >
             <Text className="block text-white text-5xl font-bold">+</Text>
           </View>
