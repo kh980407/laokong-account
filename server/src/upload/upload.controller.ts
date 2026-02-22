@@ -54,6 +54,36 @@ export class UploadController {
     const result = await this.uploadService.uploadAudio(file)
     return { code: 200, msg: 'success', data: result }
   }
+
+  // 接收 base64 音频（用于绕过小程序 uploadFile 合法域名限制，走 request 域名）
+  @Post('audio-base64')
+  @HttpCode(HttpStatus.OK)
+  async uploadAudioBase64(@Body() body: { audioBase64: string }) {
+    console.log('POST /api/upload/audio-base64 - 上传音频(base64)')
+    if (!body?.audioBase64) {
+      return { code: 400, msg: '缺少 audioBase64', data: null }
+    }
+    let buffer: Buffer
+    try {
+      buffer = Buffer.from(body.audioBase64, 'base64')
+    } catch {
+      return { code: 400, msg: 'audioBase64 格式错误', data: null }
+    }
+    const file = {
+      buffer,
+      originalname: `record-${Date.now()}.wav`,
+      mimetype: 'audio/wav',
+      fieldname: 'audio',
+      encoding: '7bit' as const,
+      size: buffer.length,
+      stream: null,
+      destination: '',
+      filename: '',
+      path: ''
+    } as Express.Multer.File
+    const result = await this.uploadService.uploadAudio(file)
+    return { code: 200, msg: 'success', data: result }
+  }
 }
 
 @Controller('asr')

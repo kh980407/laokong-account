@@ -1,4 +1,6 @@
 export default defineAppConfig({
+  // 组件按需注入，减小包体、通过代码质量检查
+  lazyCodeLoading: 'requiredComponents',
   pages: [
     'pages/index/index',
     'pages/add/index',

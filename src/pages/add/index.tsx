@@ -49,21 +49,36 @@ const AddAccountPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isWeapp])
 
-  // 上传音频并进行语音识别
+  // 上传音频并进行语音识别（使用 base64 + request 走 request 合法域名，避免 uploadFile 域名未配置）
   const uploadAndRecognize = async (audioPath: string) => {
     try {
+      console.log('[语音] 使用 base64+request 上传，不走 uploadFile')
       Taro.showLoading({ title: '正在识别...' })
 
-      // 先上传音频文件到对象存储
-      const uploadRes = await Network.uploadFile({
-        url: '/api/upload/audio',
-        filePath: audioPath,
-        name: 'audio'
+      const fs = Taro.getFileSystemManager()
+      const base64 = await new Promise<string>((resolve, reject) => {
+        fs.readFile({
+          filePath: audioPath,
+          encoding: 'base64',
+          success: (res) => resolve((res as { data: string }).data),
+          fail: reject
+        })
       })
 
-      console.log('音频上传响应:', uploadRes)
-      const uploadData = JSON.parse(uploadRes.data)
-      const audioUrl = uploadData.data?.url
+      const uploadRes = await Network.request({
+        url: '/api/upload/audio-base64',
+        method: 'POST',
+        data: { audioBase64: base64 }
+      })
+
+      const status = uploadRes.statusCode ?? (uploadRes as { status?: number }).status
+      if (status === 404) {
+        Taro.showToast({ title: '语音服务未就绪，请部署后端最新版本', icon: 'none' })
+        return
+      }
+
+      const uploadData = uploadRes.data as { code?: number; data?: { url?: string } }
+      const audioUrl = uploadData?.data?.url
 
       if (!audioUrl) {
         throw new Error('上传失败，未获取到音频URL')
@@ -99,7 +114,7 @@ const AddAccountPage = () => {
         icon: 'none'
       })
     } finally {
-      Taro.hideLoading()
+      try { Taro.hideLoading() } catch (_) { /* 忽略 */ }
     }
   }
 
@@ -332,8 +347,22 @@ const AddAccountPage = () => {
         })
 
         console.log('图片上传响应:', uploadRes)
-        const uploadData = JSON.parse(uploadRes.data)
-        const url = uploadData.data?.url
+        const status = uploadRes.statusCode ?? (uploadRes as { status?: number }).status
+        if (status >= 400) {
+          Taro.showToast({
+            title: status === 500 ? '图片上传服务暂不可用，请检查后端配置' : '上传失败',
+            icon: 'none'
+          })
+          return
+        }
+        let uploadData: { data?: { url?: string } }
+        try {
+          uploadData = typeof uploadRes.data === 'string' ? JSON.parse(uploadRes.data) : uploadRes.data
+        } catch {
+          Taro.showToast({ title: '上传失败', icon: 'none' })
+          return
+        }
+        const url = uploadData?.data?.url
 
         if (url) {
           setImageUrl(url)
@@ -357,8 +386,9 @@ const AddAccountPage = () => {
       Taro.showToast({ title: '请输入客户姓名', icon: 'none' })
       return
     }
-    if (!formData.amount) {
-      Taro.showToast({ title: '请输入金额', icon: 'none' })
+    const amountNum = parseFloat(String(formData.amount))
+    if (!formData.amount || Number.isNaN(amountNum) || amountNum < 0) {
+      Taro.showToast({ title: '请输入有效金额（数字）', icon: 'none' })
       return
     }
     if (!formData.itemDescription) {
@@ -372,7 +402,7 @@ const AddAccountPage = () => {
       const submitData = {
         customer_name: formData.customerName,
         phone: formData.phone,
-        amount: parseFloat(formData.amount),
+        amount: amountNum,
         item_description: formData.itemDescription,
         account_date: formData.accountDate || new Date().toISOString().split('T')[0],
         is_paid: formData.isPaid,
@@ -390,15 +420,20 @@ const AddAccountPage = () => {
       console.log('提交响应:', res)
 
       Taro.hideLoading()
-      Taro.showToast({
-        title: '添加成功',
-        icon: 'success'
-      })
 
-      // 返回首页
-      setTimeout(() => {
-        Taro.navigateBack()
-      }, 1500)
+      const status = res.statusCode ?? (res as any).status
+      if (status >= 200 && status < 300) {
+        Taro.showToast({
+          title: '添加成功',
+          icon: 'success'
+        })
+        setTimeout(() => {
+          Taro.navigateBack()
+        }, 1500)
+      } else {
+        const msg = (res.data as { message?: string })?.message || (res.data as { detail?: string })?.detail || '添加失败'
+        Taro.showToast({ title: String(msg), icon: 'none' })
+      }
     } catch (error) {
       console.error('提交失败:', error)
       Taro.hideLoading()

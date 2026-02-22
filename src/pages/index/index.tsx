@@ -66,15 +66,21 @@ const IndexPage = () => {
       })
       console.log('账单列表响应:', res.data)
 
-      // 解析数据结构：res.data.data 是业务数据
-      const accountList = res.data?.data || res.data || []
+      // 解析数据结构：res.data.data 是业务数据；确保始终为数组，避免后端返回错误对象时 .reduce 报错
+      const raw = res.data?.data ?? res.data
+      const accountList = Array.isArray(raw) ? raw : []
+      if (!Array.isArray(raw) && res.data != null) {
+        const msg = (res.data as { detail?: string })?.detail || '加载失败'
+        Taro.showToast({ title: msg, icon: 'none' })
+      }
       setAccounts(accountList)
     } catch (error) {
       console.error('加载账单失败:', error)
       Taro.showToast({
-        title: '加载失败',
+        title: '无法连接后端，请检查网络',
         icon: 'none'
       })
+      setAccounts([])
     } finally {
       setLoading(false)
     }
@@ -491,8 +497,9 @@ const IndexPage = () => {
       </View>
 
       {/* 账单列表 */}
-      <ScrollView scrollY className="h-screen pb-24">
-        <View className="px-4 py-4">
+      {/* 小程序 webview 下 scroll-view 不支持 padding，用内层 View 做底部留白 */}
+      <ScrollView scrollY className="h-screen">
+        <View className="px-4 py-4 pb-24">
           {loading ? (
             <View className="flex items-center justify-center py-12">
               <Text className="block text-lg text-gray-700">加载中...</Text>

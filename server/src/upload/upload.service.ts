@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common'
+import { Injectable, BadRequestException, ServiceUnavailableException } from '@nestjs/common'
 import { S3Storage } from 'coze-coding-dev-sdk'
 import { ASRClient, Config } from 'coze-coding-dev-sdk'
 import { HeaderUtils } from 'coze-coding-dev-sdk'
@@ -9,17 +9,29 @@ export class UploadService {
   private s3Storage: S3Storage
 
   constructor() {
+    const endpoint = process.env.COZE_BUCKET_ENDPOINT_URL
+    const bucket = process.env.COZE_BUCKET_NAME
+    if (!endpoint || !bucket) {
+      console.warn('COZE_BUCKET_ENDPOINT_URL 或 COZE_BUCKET_NAME 未配置，图片/音频上传将不可用')
+    }
     this.s3Storage = new S3Storage({
-      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+      endpointUrl: endpoint || '',
       accessKey: '',
       secretKey: '',
-      bucketName: process.env.COZE_BUCKET_NAME,
+      bucketName: bucket || '',
       region: 'cn-beijing',
     })
   }
 
+  private checkBucketConfig(): void {
+    if (!process.env.COZE_BUCKET_ENDPOINT_URL || !process.env.COZE_BUCKET_NAME) {
+      throw new ServiceUnavailableException('对象存储未配置，请在服务端设置 COZE_BUCKET_* 环境变量')
+    }
+  }
+
   // 上传图片
   async uploadImage(file: Express.Multer.File) {
+    this.checkBucketConfig()
     console.log('上传图片:', file.originalname, '大小:', file.size)
 
     if (!file || !file.buffer) {
@@ -48,6 +60,7 @@ export class UploadService {
 
   // 上传音频
   async uploadAudio(file: Express.Multer.File) {
+    this.checkBucketConfig()
     console.log('上传音频:', file.originalname, '大小:', file.size)
 
     if (!file || !file.buffer) {
