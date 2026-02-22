@@ -29,6 +29,31 @@ export class UploadService {
     }
   }
 
+  /** 无对象存储时用内存暂存音频，供 ASR 通过临时 URL 拉取 */
+  private tempAudioMap = new Map<string, { buffer: Buffer; timeout: NodeJS.Timeout }>()
+  private readonly TEMP_AUDIO_TTL_MS = 5 * 60 * 1000
+
+  storeTempAudio(buffer: Buffer): string {
+    const id = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const timeout = setTimeout(() => {
+      this.tempAudioMap.delete(id)
+    }, this.TEMP_AUDIO_TTL_MS)
+    this.tempAudioMap.set(id, { buffer, timeout })
+    return id
+  }
+
+  getTempAudioAndRemove(id: string): Buffer | null {
+    const entry = this.tempAudioMap.get(id)
+    if (!entry) return null
+    clearTimeout(entry.timeout)
+    this.tempAudioMap.delete(id)
+    return entry.buffer
+  }
+
+  hasBucketConfig(): boolean {
+    return !!(process.env.COZE_BUCKET_ENDPOINT_URL && process.env.COZE_BUCKET_NAME)
+  }
+
   // 上传图片
   async uploadImage(file: Express.Multer.File) {
     this.checkBucketConfig()
@@ -58,28 +83,37 @@ export class UploadService {
     return { key: fileKey, url: imageUrl }
   }
 
-  // 上传音频（从 Buffer，用于 base64 上传，避免伪造 Multer.File 类型）
+  // 上传音频（从 Buffer）。有对象存储则用 S3；无则用内存暂存并返回临时 URL（需传入 baseUrl）
   async uploadAudioFromBuffer(
     buffer: Buffer,
+    baseUrl?: string,
     fileName = `record-${Date.now()}.wav`,
     mimeType = 'audio/wav',
-  ) {
-    this.checkBucketConfig()
+  ): Promise<{ key: string; url: string }> {
     if (!buffer || buffer.length === 0) {
       throw new BadRequestException('文件不存在')
     }
-    const fileKey = await this.s3Storage.uploadFile({
-      fileContent: buffer,
-      fileName: `account-audio/${Date.now()}-${fileName}`,
-      contentType: mimeType,
-    })
-    console.log('音频上传成功, key:', fileKey)
-    const audioUrl = await this.s3Storage.generatePresignedUrl({
-      key: fileKey,
-      expireTime: 3600,
-    })
-    console.log('生成音频 URL:', audioUrl)
-    return { key: fileKey, url: audioUrl }
+    if (this.hasBucketConfig()) {
+      this.checkBucketConfig()
+      const fileKey = await this.s3Storage.uploadFile({
+        fileContent: buffer,
+        fileName: `account-audio/${Date.now()}-${fileName}`,
+        contentType: mimeType,
+      })
+      console.log('音频上传成功, key:', fileKey)
+      const audioUrl = await this.s3Storage.generatePresignedUrl({
+        key: fileKey,
+        expireTime: 3600,
+      })
+      return { key: fileKey, url: audioUrl }
+    }
+    if (!baseUrl) {
+      throw new ServiceUnavailableException('对象存储未配置且无法生成临时 URL')
+    }
+    const id = this.storeTempAudio(buffer)
+    const url = `${baseUrl.replace(/\/$/, '')}/api/upload/audio-temp/${id}`
+    console.log('音频使用内存暂存, 临时 URL:', url)
+    return { key: id, url }
   }
 
   // 上传音频（从 Multer 文件）

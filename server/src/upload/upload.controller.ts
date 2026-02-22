@@ -1,6 +1,7 @@
-import { Controller, Post, UploadedFile, UseInterceptors, Body, HttpCode, HttpStatus, Headers } from '@nestjs/common'
+import { Controller, Post, Get, UploadedFile, UseInterceptors, Body, HttpCode, HttpStatus, Headers, Req, Param, Res } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { memoryStorage } from 'multer'
+import { Request, Response } from 'express'
 import { UploadService } from './upload.service'
 
 @Controller('upload')
@@ -55,10 +56,10 @@ export class UploadController {
     return { code: 200, msg: 'success', data: result }
   }
 
-  // 接收 base64 音频（用于绕过小程序 uploadFile 合法域名限制，走 request 域名）
+  // 接收 base64 音频（用于绕过小程序 uploadFile 合法域名限制）。无对象存储时用内存暂存并返回临时 URL
   @Post('audio-base64')
   @HttpCode(HttpStatus.OK)
-  async uploadAudioBase64(@Body() body: { audioBase64: string }) {
+  async uploadAudioBase64(@Body() body: { audioBase64: string }, @Req() req: Request) {
     console.log('POST /api/upload/audio-base64 - 上传音频(base64)')
     if (!body?.audioBase64) {
       return { code: 400, msg: '缺少 audioBase64', data: null }
@@ -69,8 +70,21 @@ export class UploadController {
     } catch {
       return { code: 400, msg: 'audioBase64 格式错误', data: null }
     }
-    const result = await this.uploadService.uploadAudioFromBuffer(buffer)
+    const baseUrl = `${req.protocol}://${req.get('host')}`
+    const result = await this.uploadService.uploadAudioFromBuffer(buffer, baseUrl)
     return { code: 200, msg: 'success', data: result }
+  }
+
+  // 临时音频 URL：供 ASR 拉取，取完后即删（无对象存储时的 fallback）
+  @Get('audio-temp/:id')
+  getTempAudio(@Param('id') id: string, @Res() res: Response) {
+    const buffer = this.uploadService.getTempAudioAndRemove(id)
+    if (!buffer) {
+      res.status(404).json({ code: 404, msg: 'not found', data: null })
+      return
+    }
+    res.setHeader('Content-Type', 'audio/wav')
+    res.send(buffer)
   }
 }
 
