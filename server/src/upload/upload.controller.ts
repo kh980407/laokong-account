@@ -69,19 +69,7 @@ export class UploadController {
     } catch {
       return { code: 400, msg: 'audioBase64 格式错误', data: null }
     }
-    const file = {
-      buffer,
-      originalname: `record-${Date.now()}.wav`,
-      mimetype: 'audio/wav',
-      fieldname: 'audio',
-      encoding: '7bit' as const,
-      size: buffer.length,
-      stream: null,
-      destination: '',
-      filename: '',
-      path: ''
-    } as unknown as Express.Multer.File
-    const result = await this.uploadService.uploadAudio(file)
+    const result = await this.uploadService.uploadAudioFromBuffer(buffer)
     return { code: 200, msg: 'success', data: result }
   }
 }

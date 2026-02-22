@@ -58,7 +58,31 @@ export class UploadService {
     return { key: fileKey, url: imageUrl }
   }
 
-  // 上传音频
+  // 上传音频（从 Buffer，用于 base64 上传，避免伪造 Multer.File 类型）
+  async uploadAudioFromBuffer(
+    buffer: Buffer,
+    fileName = `record-${Date.now()}.wav`,
+    mimeType = 'audio/wav',
+  ) {
+    this.checkBucketConfig()
+    if (!buffer || buffer.length === 0) {
+      throw new BadRequestException('文件不存在')
+    }
+    const fileKey = await this.s3Storage.uploadFile({
+      fileContent: buffer,
+      fileName: `account-audio/${Date.now()}-${fileName}`,
+      contentType: mimeType,
+    })
+    console.log('音频上传成功, key:', fileKey)
+    const audioUrl = await this.s3Storage.generatePresignedUrl({
+      key: fileKey,
+      expireTime: 3600,
+    })
+    console.log('生成音频 URL:', audioUrl)
+    return { key: fileKey, url: audioUrl }
+  }
+
+  // 上传音频（从 Multer 文件）
   async uploadAudio(file: Express.Multer.File) {
     this.checkBucketConfig()
     console.log('上传音频:', file.originalname, '大小:', file.size)
