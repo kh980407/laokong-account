@@ -179,7 +179,8 @@ export class UploadService {
     if (!audioUrl && !audioBase64) {
       throw new BadRequestException('请提供 audioUrl 或 audioBase64')
     }
-    if (!process.env.COZE_WORKLOAD_IDENTITY_API_KEY) {
+    const apiKey = (process.env.COZE_WORKLOAD_IDENTITY_API_KEY || '').trim()
+    if (!apiKey) {
       throw new ServiceUnavailableException(
         '语音识别需配置 COZE_WORKLOAD_IDENTITY_API_KEY，请在 Railway Variables 中添加。可从 Coze 开发者平台获取。'
       )
