@@ -215,6 +215,7 @@ const IndexPage = () => {
   // 计算统计信息
   const totalAmount = accounts.reduce((sum, acc) => sum + acc.amount, 0)
   const unpaidCount = accounts.filter(acc => !acc.is_paid).length
+  const unpaidAmount = accounts.filter(acc => !acc.is_paid).reduce((sum, acc) => sum + acc.amount, 0)
 
   // 按年-月-日三级分组（支持多种排序方式）
   const groupedAccounts = useMemo(() => {
@@ -303,52 +304,48 @@ const IndexPage = () => {
 
   return (
     <View className="min-h-screen bg-gray-50">
-      {/* 导航栏右侧添加按钮 */}
-      <View style={{ position: 'absolute', right: '16px', top: '60px', zIndex: 10 }}>
-        <View
-          onClick={goToAddPage}
-          className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center shadow-lg"
-        >
-          <Text className="block text-white text-2xl">+</Text>
-        </View>
-      </View>
-
       {/* 统计信息卡片 */}
       <View className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 p-5 pb-6 shadow-xl border-b-4 border-teal-600">
         {/* 标题区域 */}
-        <View className="flex items-center gap-4 mb-4">
-          <View className="w-12 h-12 bg-white bg-opacity-30 rounded-2xl flex items-center justify-center shadow-md backdrop-blur-sm">
-            <Text className="text-4xl">📔</Text>
+        <View className="flex items-center gap-4 mb-6">
+          <View className="w-14 h-14 bg-white bg-opacity-30 rounded-2xl flex items-center justify-center shadow-md backdrop-blur-sm">
+            <Text className="text-5xl">📔</Text>
           </View>
           <View>
-            <Text className="block text-2xl font-bold text-white">老孔记账本</Text>
-            <Text className="block text-base text-emerald-50 mt-1">记录美好生活，算好每笔账</Text>
+            <Text className="block text-3xl font-bold text-white">老孔记账本</Text>
+            <Text className="block text-lg text-emerald-50 mt-1">记录美好生活，算好每笔账</Text>
           </View>
         </View>
 
-        {/* 数据统计区域 */}
-        <View className="flex justify-between gap-2">
-          <View className="flex-1 bg-white bg-opacity-30 rounded-xl p-3 backdrop-blur-sm shadow-md">
-            <View className="flex flex-col items-center gap-1 mb-1">
-              <Text className="text-4xl">💰</Text>
-              <Text className="block text-base text-white font-semibold">总金额</Text>
-            </View>
-            <View className="flex justify-center mt-1">
-              <Text className="block text-2xl font-bold text-white">
-                ¥{totalAmount.toFixed(2)}
-              </Text>
-            </View>
+        {/* 数据统计区域 - 简洁文字显示 */}
+        <View className="space-y-3">
+          <View className="flex items-center justify-between">
+            <Text className="block text-xl text-white font-semibold">💰 总金额</Text>
+            <Text className="block text-3xl font-bold text-white">
+              ¥{totalAmount.toFixed(2)}
+            </Text>
           </View>
-          <View className="flex-1 bg-white bg-opacity-30 rounded-xl p-3 backdrop-blur-sm shadow-md">
-            <View className="flex flex-col items-center gap-1 mb-1">
-              <Text className="text-4xl">📋</Text>
-              <Text className="block text-base text-white font-semibold">待收款</Text>
-            </View>
-            <View className="flex justify-center mt-1">
-              <Text className="block text-2xl font-bold text-white">
-                {unpaidCount} 笔
-              </Text>
-            </View>
+          <View className="flex items-center justify-between">
+            <Text className="block text-xl text-white font-semibold">📋 待收款</Text>
+            <Text className="block text-2xl font-bold text-white">
+              {unpaidCount} 笔
+            </Text>
+          </View>
+          <View className="flex items-center justify-between bg-white bg-opacity-20 rounded-xl px-4 py-3">
+            <Text className="block text-xl text-white font-semibold">⏳ 未付款总额</Text>
+            <Text className="block text-3xl font-bold text-yellow-200">
+              ¥{unpaidAmount.toFixed(2)}
+            </Text>
+          </View>
+        </View>
+
+        {/* 居中的新增按钮 */}
+        <View className="flex justify-center mt-6">
+          <View
+            onClick={goToAddPage}
+            className="bg-white bg-opacity-30 rounded-full w-20 h-20 flex items-center justify-center shadow-lg backdrop-blur-sm active:bg-white active:bg-opacity-50 transition-colors"
+          >
+            <Text className="block text-white text-5xl font-bold">+</Text>
           </View>
         </View>
       </View>
