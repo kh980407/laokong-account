@@ -80,7 +80,7 @@ export class UploadController {
       destination: '',
       filename: '',
       path: ''
-    } as Express.Multer.File
+    } as unknown as Express.Multer.File
     const result = await this.uploadService.uploadAudio(file)
     return { code: 200, msg: 'success', data: result }
   }
