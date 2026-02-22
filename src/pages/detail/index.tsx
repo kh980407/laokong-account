@@ -19,6 +19,7 @@ const DetailPage = () => {
   const [account, setAccount] = useState<Account | null>(null)
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [imageLoadFailed, setImageLoadFailed] = useState(false)
 
   // 获取路由参数
   const router = Taro.useRouter()
@@ -41,6 +42,7 @@ const DetailPage = () => {
       console.log('账单详情响应:', res.data)
       const accountData = res.data?.data || res.data
       setAccount(accountData)
+      setImageLoadFailed(false)
     } catch (error) {
       console.error('加载账单详情失败:', error)
       Taro.showToast({ title: '加载失败', icon: 'none' })
@@ -253,20 +255,29 @@ const DetailPage = () => {
               <Text className="block text-lg font-bold text-gray-900 mb-4">
                 凭证图片
               </Text>
-              <Image
-                src={account.image_url}
-                className="w-full rounded-xl"
-                mode="widthFix"
-                onClick={() => handlePreviewImage(account.image_url)}
-              />
-              <View
-                onClick={() => handleSaveImage(account.image_url)}
-                className="mt-3 bg-blue-50 rounded-xl py-3 px-4 border border-blue-200"
-              >
-                <Text className="block text-center text-base font-semibold text-blue-600">
-                  💾 保存图片到相册
-                </Text>
-              </View>
+              {imageLoadFailed ? (
+                <View className="py-8 bg-gray-100 rounded-xl">
+                  <Text className="block text-center text-gray-500">凭证图片已过期或无法加载</Text>
+                </View>
+              ) : (
+                <Image
+                  src={account.image_url}
+                  className="w-full rounded-xl"
+                  mode="widthFix"
+                  onError={() => setImageLoadFailed(true)}
+                  onClick={() => handlePreviewImage(account.image_url)}
+                />
+              )}
+              {!imageLoadFailed && (
+                <View
+                  onClick={() => handleSaveImage(account.image_url)}
+                  className="mt-3 bg-blue-50 rounded-xl py-3 px-4 border border-blue-200"
+                >
+                  <Text className="block text-center text-base font-semibold text-blue-600">
+                    保存图片到相册
+                  </Text>
+                </View>
+              )}
             </View>
           )}
         </View>

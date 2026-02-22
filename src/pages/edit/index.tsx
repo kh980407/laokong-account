@@ -15,6 +15,7 @@ const EditAccountPage = () => {
     isPaid: false
   })
   const [imageUrl, setImageUrl] = useState('')
+  const [imageLoadFailed, setImageLoadFailed] = useState(false)
 
   // 页面加载时获取账单详情
   useEffect(() => {
@@ -50,6 +51,7 @@ const EditAccountPage = () => {
           isPaid: account.is_paid || false
         })
         setImageUrl(account.image_url || '')
+        setImageLoadFailed(false)
       }
     } catch (error) {
       console.error('加载账单详情失败:', error)
@@ -81,24 +83,9 @@ const EditAccountPage = () => {
             fail: reject
           })
         })
-        const uploadRes = await Network.request({
-          url: '/api/upload/image-base64',
-          method: 'POST',
-          data: { imageBase64: base64, mimeType: 'image/jpeg' }
-        })
-        const status = uploadRes.statusCode ?? (uploadRes as { status?: number }).status
-        if (status >= 400) {
-          Taro.showToast({ title: '上传失败', icon: 'none' })
-          return
-        }
-        const uploadData = uploadRes.data as { data?: { url?: string } }
-        const url = uploadData?.data?.url
-        if (url) {
-          setImageUrl(url)
-          Taro.showToast({ title: '上传成功', icon: 'success' })
-        } else {
-          throw new Error('上传失败，未获取到图片URL')
-        }
+        setImageUrl(`data:image/jpeg;base64,${base64}`)
+        setImageLoadFailed(false)
+        Taro.showToast({ title: '添加成功', icon: 'success' })
       }
     } catch (error) {
       console.error('选择图片失败:', error)
@@ -289,11 +276,18 @@ const EditAccountPage = () => {
 
           {imageUrl ? (
             <View className="relative">
-              <Image
-                src={imageUrl}
-                className="w-full h-48 rounded-xl object-cover"
-                mode="aspectFill"
-              />
+              {imageLoadFailed ? (
+                <View className="w-full h-48 rounded-xl bg-gray-100 flex items-center justify-center">
+                  <Text className="text-gray-500">凭证图片已过期</Text>
+                </View>
+              ) : (
+                <Image
+                  src={imageUrl}
+                  className="w-full h-48 rounded-xl object-cover"
+                  mode="aspectFill"
+                  onError={() => setImageLoadFailed(true)}
+                />
+              )}
               <View
                 onClick={() => setImageUrl('')}
                 className="absolute top-2 right-2 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center"

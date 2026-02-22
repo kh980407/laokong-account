@@ -17,6 +17,7 @@ const AddAccountPage = () => {
   const [isRecording, setIsRecording] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [imageUrl, setImageUrl] = useState('')
+  const [imageBase64, setImageBase64] = useState('')
   const isWeapp = Taro.getEnv() === Taro.ENV_TYPE.WEAPP
 
   // 初始化录音管理器（仅小程序端）
@@ -159,10 +160,10 @@ const AddAccountPage = () => {
     }
   }
 
-  // 图片识别
+  // 图片识别（优先 base64 避免临时 URL 404）
   const handleImageRecognition = async () => {
-    if (!imageUrl) {
-      Taro.showToast({ title: '请先上传凭证图片', icon: 'none' })
+    if (!imageUrl || !imageBase64) {
+      Taro.showToast({ title: '请先选择凭证图片', icon: 'none' })
       return
     }
 
@@ -172,7 +173,7 @@ const AddAccountPage = () => {
       const aiRes = await Network.request({
         url: '/api/ai/parse-image',
         method: 'POST',
-        data: { imageUrl }
+        data: { imageBase64 }
       })
 
       console.log('图片识别响应:', aiRes)
@@ -326,7 +327,7 @@ const AddAccountPage = () => {
     recorderManager.stop()
   }
 
-  // 选择图片（base64+request 绕过 uploadFile 合法域名限制，无 bucket 时内存暂存）
+  // 选择图片：用 data URL 本地预览和保存，避免临时 URL 在 Railway 多实例下 404
   const handleChooseImage = async () => {
     try {
       const res = await Taro.chooseImage({
@@ -337,7 +338,6 @@ const AddAccountPage = () => {
 
       if (res.tempFilePaths && res.tempFilePaths.length > 0) {
         setIsUploading(true)
-
         const fs = Taro.getFileSystemManager()
         const base64 = await new Promise<string>((resolve, reject) => {
           fs.readFile({
@@ -347,33 +347,13 @@ const AddAccountPage = () => {
             fail: reject
           })
         })
-
-        const uploadRes = await Network.request({
-          url: '/api/upload/image-base64',
-          method: 'POST',
-          data: { imageBase64: base64, mimeType: 'image/jpeg' }
-        })
-
-        const status = uploadRes.statusCode ?? (uploadRes as { status?: number }).status
-        if (status >= 400) {
-          Taro.showToast({
-            title: status === 503 ? '图片服务暂不可用' : '上传失败',
-            icon: 'none'
-          })
-          return
-        }
-        const uploadData = uploadRes.data as { data?: { url?: string } }
-        const url = uploadData?.data?.url
-        if (url) {
-          setImageUrl(url)
-          Taro.showToast({ title: '上传成功', icon: 'success' })
-        } else {
-          throw new Error('上传失败，未获取到图片URL')
-        }
+        setImageBase64(base64)
+        setImageUrl(`data:image/jpeg;base64,${base64}`)
+        Taro.showToast({ title: '添加成功', icon: 'success' })
       }
     } catch (error) {
       console.error('选择图片失败:', error)
-      Taro.showToast({ title: '上传失败', icon: 'none' })
+      Taro.showToast({ title: '选择失败', icon: 'none' })
     } finally {
       setIsUploading(false)
     }
