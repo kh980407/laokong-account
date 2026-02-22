@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { LLMClient, Config } from 'coze-coding-dev-sdk'
+import { LLMClient } from 'coze-coding-dev-sdk'
+import { createCozeConfig } from '@/coze-config'
 
 @Injectable()
 export class AIService {
   private client: LLMClient
 
   constructor() {
-    const config = new Config()
+    const config = createCozeConfig()
     this.client = new LLMClient(config)
   }
 

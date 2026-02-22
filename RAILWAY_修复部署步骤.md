@@ -58,6 +58,32 @@
 
 ---
 
+## 第六步：配置 Coze 相关变量（语音识别、AI 解析必需）
+
+从 Coze 托管迁移到 Railway 自部署后，需在 Railway Variables 中手动添加 Coze 凭证，否则语音识别和 AI 解析会 503/400。
+
+**在 Railway → server → Variables 中添加：**
+
+| 变量名 | 说明 | 示例值 |
+|--------|------|--------|
+| `COZE_WORKLOAD_IDENTITY_API_KEY` | Coze 工作负载 API 密钥（必填，语音+AI） | 从 Coze 开发者平台获取 |
+| `COZE_INTEGRATION_BASE_URL` | 可选，默认 `https://api.coze.com` | `https://api.coze.com` |
+| `COZE_INTEGRATION_MODEL_BASE_URL` | 可选，默认 `https://model.coze.com` | `https://model.coze.com` |
+| `PUBLIC_URL` | 临时音频 URL 的域名（建议） | `https://server-production-9812.up.railway.app` |
+
+**获取 COZE_WORKLOAD_IDENTITY_API_KEY：**
+- 登录 Coze 开发者平台（https://www.coze.cn 或 https://developer.coze.com）
+- 进入「项目 / 应用」→「API 密钥」或「工作负载身份」
+- 创建或复制 API Key，填入 Railway Variables
+
+**已有变量（数据库）：**
+- `COZE_SUPABASE_URL`、`COZE_SUPABASE_ANON_KEY` 用于账单列表
+
+**可选（图片/音频上传到对象存储）：**
+- `COZE_BUCKET_ENDPOINT_URL`、`COZE_BUCKET_NAME` 不配置时，图片上传 503，语音用内存暂存。
+
+---
+
 ## 验证
 
 - 新部署成功后，访问或请求：  

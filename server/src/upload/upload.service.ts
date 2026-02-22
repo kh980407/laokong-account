@@ -1,7 +1,8 @@
 import { Injectable, BadRequestException, ServiceUnavailableException } from '@nestjs/common'
 import { S3Storage } from 'coze-coding-dev-sdk'
-import { ASRClient, Config } from 'coze-coding-dev-sdk'
+import { ASRClient } from 'coze-coding-dev-sdk'
 import { HeaderUtils } from 'coze-coding-dev-sdk'
+import { createCozeConfig } from '@/coze-config'
 import * as fs from 'fs'
 
 @Injectable()
@@ -152,8 +153,13 @@ export class UploadService {
     if (!audioUrl) {
       throw new BadRequestException('音频 URL 不能为空')
     }
+    if (!process.env.COZE_WORKLOAD_IDENTITY_API_KEY) {
+      throw new ServiceUnavailableException(
+        '语音识别需配置 COZE_WORKLOAD_IDENTITY_API_KEY，请在 Railway Variables 中添加。可从 Coze 开发者平台获取。'
+      )
+    }
 
-    const config = new Config()
+    const config = createCozeConfig()
     const customHeaders = headers ? HeaderUtils.extractForwardHeaders(headers) : undefined
     const asrClient = new ASRClient(config, customHeaders)
 
