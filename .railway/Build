@@ -1,0 +1,6 @@
+#!/bin/bash
+# Railway构建配置
+# 使用npm而不是pnpm
+
+npm install
+npm run build
